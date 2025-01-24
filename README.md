@@ -8,6 +8,9 @@
 
 _Add some description about your use case here_
 
+
+![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
+
 ## Agents
 
   - [Web Search](https://github.com/GAmaranathaReddy/ai-agents/tree/main/web-rearch-agent)
@@ -17,6 +20,8 @@ _Add some description about your use case here_
   - [Fianace Agent](https://github.com/GAmaranathaReddy/ai-agents/tree/main/finance_agent)
 
   - [Health Fitness Agent](https://github.com/GAmaranathaReddy/ai-agents/tree/main/ai_health_fitness_agent)
+
+![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
 
 ## Getting Started
 
@@ -28,17 +33,42 @@ _Add some description about your use case here_
 
 ### Setting Up Development Environment in Local
 
-#### Dependency Management
+
+Clone the project
 
 ```bash
-# run this command if multiple versions of Python are installed in local
-poetry env use python3.9
-
-# install all required dependencies
-poetry install
+  git clone https://github.com/GAmaranathaReddy/ai-agents.git
 ```
 
-This will set up the virtual environment and install all the Python packages needed for development.
+Go to the agent directory
+
+```bash
+  cd <<agent directory>>
+```
+
+![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
+
+### Run using Poetry
+
+#### Set up development environment
+
+```bash
+  poetry env use python3.12
+```
+
+This configures Poetry to use Python 3.12 as the interpreter for the project's virtual environment.
+
+#### Install dependencies
+
+```bash
+  poetry install
+```
+
+This installs all dependencies specified in the pyproject.toml on each agent project file
+
+
+
+![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
 
 
 ## Additional Notes
