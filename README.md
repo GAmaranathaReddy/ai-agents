@@ -2,7 +2,7 @@
 
 # Example App
 
-[About](#about) • [Agents](#deployment-information) • [Getting Started](#getting-started) • [Additional Notes](#additional-notes) • [Contributors](#contributors)
+[About](#about) • [Agents](#agents) • [Getting Started](#getting-started) • [Additional Notes](#additional-notes) • [Contributors](#contributors)
 
 ## About
 
