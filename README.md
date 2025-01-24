@@ -6,7 +6,9 @@
 
 ## About
 
-_Add some description about your use case here_
+AI agents automate tasks, enhance decision-making, improve personalization, provide 24/7 availability, scale efficiently, reduce costs, increase accuracy, solve complex problems, enable accessibility, and drive innovation.
+
+I am creating a tutorial on agents, covering various types. The tutorial includes Python Poetry projects designed to run locally using Ollama models and a local database, ensuring data privacy. This approach eliminates the need to spend money on purchasing API keys 
 
 
 ![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
