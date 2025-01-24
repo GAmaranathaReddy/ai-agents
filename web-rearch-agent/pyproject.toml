@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "web-rearch-agent"
+version = "0.1.0"
+description = ""
+authors = ["I552839 <amaranatha.reddy.gowni@sap.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+streamlit = "^1.41.1"
+duckduckgo-search = "^7.2.1"
+phidata = "^2.7.9"
+ollama = "^0.4.6"
+streamlit-chat = "^0.1.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
