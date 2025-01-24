@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "data-analyst"
+version = "0.1.0"
+description = ""
+authors = ["I552839 <amaranatha.reddy.gowni@sap.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+phidata = "^2.7.8"
+streamlit = "^1.41.1"
+duckdb = "^1.1.3"
+pandas = "^2.2.3"
+numpy = "^2.2.1"
+ollama = "^0.4.6"
+
+[tool.poetry.scripts]
+start = "run:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
