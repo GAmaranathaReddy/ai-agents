@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "finance-agent"
+version = "0.1.0"
+description = ""
+authors = ["I552839 <amaranatha.reddy.gowni@sap.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+phidata = "^2.7.9"
+fastapi = {extras = ["standard"], version = "^0.115.6"}
+sqlalchemy = "^2.0.37"
+yfinance = "^0.2.52"
+ollama = "^0.4.7"
+duckduckgo-search = "^7.2.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
