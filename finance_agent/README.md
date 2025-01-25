@@ -17,6 +17,11 @@ The **Finance Agent Application** is a multi-functional agent platform designed 
 
 ---
 
+## How Works
+
+<img width="803" alt="image" src="https://github.com/user-attachments/assets/10de28c6-2cce-4bff-a95e-9ea8d96db4aa" />
+
+
 ## How to Run the Application
 
 ### Prerequisites
