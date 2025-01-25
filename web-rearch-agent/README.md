@@ -37,7 +37,7 @@ Clone the project
 ```
 Go to the agent directory
 ```bash
-  cd ai_health_fitness_agent
+  cd web_rearch_agent
 ```
 ### Run using Poetry
 
