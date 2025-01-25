@@ -16,6 +16,11 @@ The **AI Health & Fitness Planner** is an interactive web application built with
   - [phi.model.ollama.Ollama](https://phi.docs/ollama)
 - **Styling**: Custom CSS for enhanced UI components
 
+## How Works
+
+<img width="803" alt="image" src="https://github.com/user-attachments/assets/10de28c6-2cce-4bff-a95e-9ea8d96db4aa" />
+
+
 ## Prerequisites
 - Python 3.12+
 - Streamlit library installed
