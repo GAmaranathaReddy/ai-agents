@@ -24,6 +24,10 @@ Ensure you have the following installed on your system:
    - `streamlit`
    - `streamlit_chat`
    - `phi`
+  
+## How Works
+
+<img width="803" alt="image" src="https://github.com/user-attachments/assets/10de28c6-2cce-4bff-a95e-9ea8d96db4aa" />
 
 ### Setting Up Development Environment in Local
 
