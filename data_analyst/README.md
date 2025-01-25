@@ -21,6 +21,10 @@ This project is a Streamlit application designed to act as a **Data Analyst Agen
   - `pandas`
   - `phi`
 
+## How Works
+
+<img width="803" alt="image" src="https://github.com/user-attachments/assets/10de28c6-2cce-4bff-a95e-9ea8d96db4aa" />
+
 ## Installation
 
 ### Setting Up Development Environment in Local
