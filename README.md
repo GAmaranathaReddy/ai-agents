@@ -16,11 +16,10 @@ I am creating a tutorial on agents, covering various types. The tutorial include
 ## Agents
 
   - [Web Search](https://github.com/GAmaranathaReddy/ai-agents/tree/main/web-rearch-agent)
-
+    - [Code WalkThough](https://youtu.be/j6x0PKXi1RA)
   - [Data Analyst](https://github.com/GAmaranathaReddy/ai-agents/tree/main/data_analyst)
-
   - [Fianace Agent](https://github.com/GAmaranathaReddy/ai-agents/tree/main/finance_agent)
-
+    - [Code WalkThough](https://youtu.be/XPWWGjytBKU)
   - [Health Fitness Agent](https://github.com/GAmaranathaReddy/ai-agents/tree/main/ai_health_fitness_agent)
 
 ![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
