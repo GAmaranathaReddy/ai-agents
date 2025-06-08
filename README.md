@@ -23,13 +23,21 @@ I am creating a tutorial on agents, covering various types. The tutorial include
   - [Health Fitness Agent](https://github.com/GAmaranathaReddy/ai-agents/tree/main/ai_health_fitness_agent)
   - **Agentic Design Patterns**
     - [LLM-Enhanced Agent](./llm_enhanced_agent/): Demonstrates enhancing an agent's capabilities with (simulated) LLM interaction.
+      - *Use Case:* A customer service bot that uses an LLM to understand user queries and generate natural-sounding responses.
     - [Fixed Automation Agent](./fixed_automation_agent/): Shows a rule-based agent performing predefined tasks.
+      - *Use Case:* An automated system for daily report generation where the steps are fixed and predictable.
     - [ReAct + RAG Agent](./react_rag_agent/): Implements a simplified Reason-Act loop with Retrieval Augmented Generation.
+      - *Use Case:* A research assistant that can break down a complex question, search a knowledge base for relevant information, and synthesize an answer.
     - [Tool-Enhanced Agent](./tool_enhanced_agent/): An agent that can select and use various tools based on user input.
+      - *Use Case:* A personal assistant that books appointments (calendar API), checks weather (weather API), and manages to-do lists.
     - [Self-Reflecting Agent](./self_reflecting_agent/): An agent that performs a task, critiques its own output, and attempts to refine it.
+      - *Use Case:* An AI writing assistant that generates a draft, reviews it for tone/clarity/grammar, and refines it.
     - [Memory-Enhanced Agent](./memory_enhanced_agent/): An agent that stores and recalls information from past interactions.
+      - *Use Case:* A personalized learning tutor that remembers a student's past performance to tailor future lessons.
     - [Environment-Controlled Agent](./environment_controlled_agent/): An agent that perceives and acts within a simple simulated environment.
+      - *Use Case:* A robotic vacuum cleaner that navigates a room, detects obstacles, and adjusts its path based on sensor inputs.
     - [Self-Learning Agent](./self_learning_agent/): A Rock-Paper-Scissors agent that adapts its strategy based on opponent's moves.
+      - *Use Case:* A game AI that improves its playing strategy over time by learning from wins/losses against opponents.
 
 ![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
 
