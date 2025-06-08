@@ -21,6 +21,15 @@ I am creating a tutorial on agents, covering various types. The tutorial include
   - [Fianace Agent](https://github.com/GAmaranathaReddy/ai-agents/tree/main/finance_agent)
     - [Code WalkThough](https://youtu.be/XPWWGjytBKU)
   - [Health Fitness Agent](https://github.com/GAmaranathaReddy/ai-agents/tree/main/ai_health_fitness_agent)
+  - **Agentic Design Patterns**
+    - [LLM-Enhanced Agent](./llm_enhanced_agent/): Demonstrates enhancing an agent's capabilities with (simulated) LLM interaction.
+    - [Fixed Automation Agent](./fixed_automation_agent/): Shows a rule-based agent performing predefined tasks.
+    - [ReAct + RAG Agent](./react_rag_agent/): Implements a simplified Reason-Act loop with Retrieval Augmented Generation.
+    - [Tool-Enhanced Agent](./tool_enhanced_agent/): An agent that can select and use various tools based on user input.
+    - [Self-Reflecting Agent](./self_reflecting_agent/): An agent that performs a task, critiques its own output, and attempts to refine it.
+    - [Memory-Enhanced Agent](./memory_enhanced_agent/): An agent that stores and recalls information from past interactions.
+    - [Environment-Controlled Agent](./environment_controlled_agent/): An agent that perceives and acts within a simple simulated environment.
+    - [Self-Learning Agent](./self_learning_agent/): A Rock-Paper-Scissors agent that adapts its strategy based on opponent's moves.
 
 ![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
 
