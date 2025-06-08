@@ -84,7 +84,15 @@ class ReActRAGAgent:
 
         # Optionally, include the thought process in the response for debugging/transparency
         # return f"Thoughts:\n- " + "\n- ".join(thought_process) + f"\n\nResponse: {final_response}"
-        return final_response
+        # return final_response
+
+        return {
+            "thought_process": thought_process,
+            "action_taken": action_to_take,
+            "query_for_retrieval": query_for_retrieval if action_to_take and "retrieve" in action_to_take else None,
+            "retrieved_info": retrieved_info if retrieved_info and "No relevant document found" not in retrieved_info else None,
+            "final_response": final_response
+        }
 
 if __name__ == '__main__':
     agent = ReActRAGAgent()
@@ -105,8 +113,13 @@ if __name__ == '__main__':
     ]
 
     for text_input in test_inputs:
-        response = agent.reason_and_act(text_input)
+        results = agent.reason_and_act(text_input)
         print(f"User: {text_input}")
-        # For cleaner output, we're not printing thoughts here, but they are logged in the method
-        # print(f"Agent Thoughts & Response:\n{response}\n" + "-"*30)
-        print(f"Agent: {response}\n" + "-"*30)
+        print(f"  Thoughts: {results['thought_process']}")
+        if results['action_taken']:
+            print(f"  Action: {results['action_taken']}")
+            print(f"  Query for Retrieval: {results['query_for_retrieval']}")
+        if results['retrieved_info']:
+            print(f"  Retrieved Info (Snippet): {results['retrieved_info'][:60]}...")
+        print(f"  Final Response: {results['final_response']}")
+        print("-" * 30 + "\n")

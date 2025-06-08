@@ -100,3 +100,34 @@ This implementation clearly shows the agent's ability to understand different ty
     Exiting agent CLI. Goodbye!
     ```
     *(Note: The exact date/time will reflect when you run it)*
+
+### Web UI (Streamlit)
+
+This Tool-Enhanced Agent also comes with a web-based user interface built with Streamlit, allowing for easy interaction.
+
+1.  **Install Streamlit**:
+    If you don't have it already, install Streamlit. If your main project uses Poetry, you might add Streamlit as a dependency there. For a standard local installation:
+    ```bash
+    pip install streamlit
+    ```
+
+2.  **Run the Streamlit App**:
+    To launch the web UI, open your terminal, navigate to the root directory of this repository (where the main `README.md` is), and execute:
+    ```bash
+    streamlit run tool_enhanced_agent/app_ui.py
+    ```
+    This command will typically open the application in your default web browser.
+
+3.  **Interact with the Agent via Web**:
+    *   The web interface will display a title, a brief explanation, and a text input field for your query.
+    *   A sidebar will list the tools available to the agent and example commands.
+    *   Enter your query (e.g., "What is the current time?", "Calculate the sum of 10 and 5", "weather in London").
+    *   Click the "Send to Agent" button.
+    *   The UI will then display:
+        *   Your original query.
+        *   The "Tool Used" by the agent (if any).
+        *   "Tool Input Parameters" sent to the tool.
+        *   The "Tool's Direct Output".
+        *   Any "Error during processing" (if an error occurred).
+        *   The "Agent's Final Response".
+    This detailed breakdown helps visualize how the agent selected and used a tool.

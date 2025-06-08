@@ -105,3 +105,31 @@ This implementation demonstrates a basic form of frequency analysis for learning
 
     LearnerBot-RPS's final learned opponent move counts: {'rock': A, 'paper': B, 'scissors': C}
     ```
+
+### Web UI (Streamlit)
+
+The Self-Learning Rock-Paper-Scissors Agent also comes with an interactive web interface built with Streamlit, allowing you to play against the agent and observe its learning in real-time.
+
+1.  **Install Streamlit**:
+    If you haven't installed it yet, you'll need Streamlit. If your main project uses Poetry, consider adding Streamlit as a dependency there. For a standard local installation:
+    ```bash
+    pip install streamlit
+    ```
+
+2.  **Run the Streamlit App**:
+    To launch the web UI, open your terminal, navigate to the root directory of this repository (where the main `README.md` is located), and execute the command:
+    ```bash
+    streamlit run self_learning_agent/app_ui.py
+    ```
+    This will typically open the application in your default web browser.
+
+3.  **Play the Game via Web**:
+    *   The web interface will display the game title and a brief description of the agent.
+    *   Click one of the buttons ("🪨 Rock", "📄 Paper", "✂️ Scissors") to make your move.
+    *   After your move, the UI will display:
+        *   Your chosen move and the agent's move for that round.
+        *   The winner of the round.
+    *   "Overall Scores" (Your Wins, Agent Wins, Ties) are updated and displayed.
+    *   You can view the "Agent's Learned Knowledge" in an expandable section, which shows a bar chart and the raw counts of your moves as observed by the agent. This visualization helps you see how the agent's understanding of your pattern evolves.
+    *   A "Reset Game and Agent Memory" button is available in the sidebar if you want to start fresh and clear the agent's learned data.
+    *   Play multiple rounds to see if the agent starts to counter your moves based on its learned frequencies!

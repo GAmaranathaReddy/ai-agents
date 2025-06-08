@@ -52,3 +52,27 @@ The "enhancement" by the LLM is shown by how the `agent.py` takes the user's inp
     You: exit
     Exiting agent CLI. Goodbye!
     ```
+
+### Web UI (Streamlit)
+
+This agent also comes with a simple web-based user interface built with Streamlit.
+
+1.  **Install Streamlit**:
+    If you haven't already, you'll need to install Streamlit. If you are managing dependencies with Poetry for the main project, you might add it there. Otherwise, for a quick local install:
+    ```bash
+    pip install streamlit
+    ```
+    (If you are using Poetry and want to add it to this specific project's dev dependencies, you could navigate to the `llm_enhanced_agent` directory and run `poetry add streamlit --group dev` if it were a separate poetry project, or add it to the main project's `pyproject.toml`.)
+
+2.  **Run the Streamlit App**:
+    To run the web UI, navigate to the root directory of this repository (where the main `README.md` is) and use the following command in your terminal:
+    ```bash
+    streamlit run llm_enhanced_agent/app_ui.py
+    ```
+    This will typically open the application in your default web browser.
+
+3.  **Interact with the Agent via Web**:
+    *   The web page will display a title and a text input box.
+    *   Type your query into the text box.
+    *   Click the "Send to Agent" button.
+    *   The agent's response will appear below the button.

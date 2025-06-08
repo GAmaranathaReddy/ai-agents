@@ -127,3 +127,29 @@ This setup illustrates how an agent can learn from interactions, store that lear
     You: exit
     Agent: Goodbye, Alice!
     ```
+
+### Web UI (Streamlit)
+
+The Memory-Enhanced Agent also features an interactive chat interface built with Streamlit. This UI allows you to converse with the agent and inspect its memory.
+
+1.  **Install Streamlit**:
+    If you haven't already, you'll need to install Streamlit. If your main project uses Poetry, consider adding Streamlit as a dependency there. For a standard local installation:
+    ```bash
+    pip install streamlit
+    ```
+
+2.  **Run the Streamlit App**:
+    To launch the web UI, open your terminal, navigate to the root directory of this repository (where the main `README.md` is), and execute the command:
+    ```bash
+    streamlit run memory_enhanced_agent/app_ui.py
+    ```
+    This will typically open the application in your default web browser.
+
+3.  **Interact with the Agent via Web**:
+    *   The main part of the page is a chat interface. Enter your messages in the input box at the bottom.
+    *   The conversation will be displayed above the input box.
+    *   The sidebar provides options to view the agent's memory:
+        *   **"Learned Facts"**: Shows key-value pairs the agent has learned (e.g., your name, favorite color).
+        *   **"Agent's Internal Conversation Log"**: Displays the history of interactions as recorded by the agent itself.
+        *   A "Refresh Memory View" button in the sidebar can be used to update these views after new interactions.
+    *   Try having a conversation where you tell the agent your name or preferences, and then ask it about them later to see its memory in action.

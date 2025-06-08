@@ -88,3 +88,31 @@ User Input -> Agent Reasons (is retrieval needed?) -> Agent Acts (calls `retriev
     You: exit
     Exiting agent CLI. Goodbye!
     ```
+
+### Web UI (Streamlit)
+
+This ReAct + RAG agent also has a web-based user interface built with Streamlit, allowing for a more visual interaction with its reasoning process.
+
+1.  **Install Streamlit**:
+    If you haven't done so already, install Streamlit. If your main project uses Poetry, consider adding Streamlit as a dependency there. For a standard local installation:
+    ```bash
+    pip install streamlit
+    ```
+
+2.  **Run the Streamlit App**:
+    To start the web UI, open your terminal, navigate to the root directory of this repository (where the main `README.md` is), and execute the command:
+    ```bash
+    streamlit run react_rag_agent/app_ui.py
+    ```
+    This will typically launch the application in your default web browser.
+
+3.  **Interact with the Agent via Web**:
+    *   The web interface will present a title, a brief explanation, and a text input field for your query.
+    *   A sidebar will show some of the keywords the agent knows about from its knowledge base.
+    *   Enter your query (e.g., "tell me about AI", "what is react?", "doc3").
+    *   Click the "Submit to Agent" button.
+    *   The UI will then display:
+        *   An expandable section showing the agent's internal "Thought Process".
+        *   Details about any "Action Taken" (like retrieval), the query used, and a snippet of the "Retrieved Information".
+        *   The "Final Response" from the agent.
+    This allows you to see how the agent arrived at its answer.

@@ -92,3 +92,33 @@ This implementation clearly demonstrates the agent sensing its environment, maki
     (Pausing for 1.5s...)
     ```
     The simulation will continue, showing the agent reacting to the changing temperature (if it goes out of the 18-25 range) or doing nothing if conditions are optimal according to its rules.
+
+### Web UI (Streamlit)
+
+The Environment-Controlled Agent also comes with an interactive web interface built with Streamlit, allowing you to step through the simulation and observe the agent's behavior.
+
+1.  **Install Streamlit**:
+    If you haven't installed it yet, you'll need Streamlit. If your main project uses Poetry, consider adding Streamlit as a dependency there. For a standard local installation:
+    ```bash
+    pip install streamlit
+    ```
+
+2.  **Run the Streamlit App**:
+    To launch the web UI, open your terminal, navigate to the root directory of this repository (where the main `README.md` is located), and execute the command:
+    ```bash
+    streamlit run environment_controlled_agent/app_ui.py
+    ```
+    This will typically open the application in your default web browser.
+
+3.  **Interact with the Simulation via Web**:
+    *   The web interface will display the title of the simulation.
+    *   On one side (left column), you'll see the current "Environment State" displayed as a JSON object. Below this, there are buttons:
+        *   **"Run Next Step"**: Click this to advance the simulation by one step. The agent will perceive, decide, and act.
+        *   **"Reset Simulation"**: Click this to reset the environment and the agent to their initial states and clear the log.
+    *   On the other side (right column), you'll see the "Simulation Log". Each entry in the log (newest first) corresponds to a step and can be expanded to show:
+        *   The state perceived by the agent.
+        *   The action (and value, if any) decided by the agent.
+        *   The result of the action's execution on the environment.
+        *   The new state of the environment after the action.
+    *   A sidebar explains the agent's goals and the environment's parameters.
+    *   Step through the simulation to observe how the agent reacts to different environmental conditions.

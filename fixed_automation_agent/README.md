@@ -71,3 +71,26 @@ The agent does not learn or adapt; it strictly follows its programmed rules. If 
     You: exit
     Exiting agent CLI. Goodbye!
     ```
+
+### Web UI (Streamlit)
+
+This agent also features a simple web-based user interface built using Streamlit.
+
+1.  **Install Streamlit**:
+    If you haven't already, you'll need Streamlit. If your main project uses Poetry, consider adding it there. For a local setup:
+    ```bash
+    pip install streamlit
+    ```
+
+2.  **Run the Streamlit App**:
+    To launch the web UI, navigate to the root directory of this repository (where the main `README.md` is located) and execute:
+    ```bash
+    streamlit run fixed_automation_agent/app_ui.py
+    ```
+    This command will typically open the UI in your default web browser.
+
+3.  **Interact with the Agent via Web**:
+    *   The web page will show a title, a brief description of the agent, and a list of example commands.
+    *   Enter a command (e.g., `hello`, `add 10 5`, `about`) into the text input field.
+    *   Click the "Send Command" button.
+    *   The agent's response, based on its fixed rules, will be displayed.
