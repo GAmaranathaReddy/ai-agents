@@ -1,34 +1,46 @@
+import ollama # Added for Ollama integration
+
 class LLMEnhancedAgent:
-    def __init__(self, llm_service_name="PlaceholderLLM"):
+    def __init__(self, llm_service_name="Ollama", model_name="mistral"):
         """
         Initializes the LLM-Enhanced Agent.
 
         Args:
-            llm_service_name (str): The name of the LLM service being used (e.g., "OpenAI GPT-3", "Google PaLM").
-                                   For this example, it's a placeholder.
+            llm_service_name (str): The name of the LLM service being used.
+            model_name (str): The specific Ollama model to use (e.g., "mistral", "llama2").
         """
         self.llm_service_name = llm_service_name
+        self.model_name = model_name # Default model
 
     def get_llm_response(self, user_input: str) -> str:
         """
-        Simulates getting a response from an LLM.
-
-        In a real scenario, this method would make an API call to an LLM service.
-        For this example, it simply prepends a string to the user input
-        to simulate an LLM enhancing the response.
+        Gets a response from the configured Ollama LLM.
 
         Args:
             user_input (str): The input string from the user.
 
         Returns:
-            str: The LLM-enhanced response.
+            str: The LLM's response or an error message if interaction fails.
         """
-        # Simulate LLM processing
-        # In a real application, this would be an API call to an LLM.
-        # For example: response = openai.Completion.create(model="text-davinci-003", prompt=user_input)
-        # or response = palm.generate_text(prompt=user_input)
-        enhanced_response = f"[{self.llm_service_name} says]: You said '{user_input}'. That's interesting!"
-        return enhanced_response
+        try:
+            # Construct a simple prompt or use user_input directly
+            # For more complex interactions, you might build a more structured prompt.
+            prompt = f"User query: \"{user_input}\". Respond to this query."
+
+            response = ollama.chat(
+                model=self.model_name,
+                messages=[
+                    {
+                        'role': 'user',
+                        'content': user_input, # Sending user_input directly as content
+                    }
+                ]
+            )
+            return response['message']['content']
+        except Exception as e:
+            # Log the full error for debugging if needed, but return a user-friendly message
+            # print(f"Ollama interaction error: {e}")
+            return f"Error interacting with Ollama ({self.model_name}): {type(e).__name__}. Is Ollama running and the model '{self.model_name}' pulled?"
 
     def process_request(self, user_input: str) -> str:
         """
@@ -51,14 +63,31 @@ class LLMEnhancedAgent:
 
 if __name__ == '__main__':
     # Example usage (optional, primarily for testing the agent directly)
-    agent = LLMEnhancedAgent(llm_service_name="ExampleLLM/v1")
+    # Ensure Ollama is running and the model (e.g., "mistral") is pulled.
+    # Example: ollama pull mistral
+    agent = LLMEnhancedAgent() # Uses default "mistral"
 
-    test_input = "Hello, world!"
-    response = agent.process_request(test_input)
+    test_input = "Hello, world! What is the capital of France?"
     print(f"User Input: {test_input}")
+    # Direct call to get_llm_response for testing the Ollama part
+    # llm_response = agent.get_llm_response(test_input)
+    # print(f"Direct LLM Response: {llm_response}")
+
+    # Test the full process_request
+    response = agent.process_request(test_input)
     print(f"Agent Response: {response}")
 
-    test_input_2 = "Tell me about AI."
-    response_2 = agent.process_request(test_input_2)
+    test_input_2 = "Tell me a short story about a brave robot."
     print(f"\nUser Input: {test_input_2}")
+    response_2 = agent.process_request(test_input_2)
     print(f"Agent Response: {response_2}")
+
+    test_input_3 = "What is 1+1?" # Test with a model that might not be good at math
+    print(f"\nUser Input: {test_input_3}")
+    agent_custom_model = LLMEnhancedAgent(model_name="nous-hermes2") # Example for a different model
+    # Make sure "nous-hermes2" is pulled: ollama pull nous-hermes2
+    # response_3 = agent_custom_model.process_request(test_input_3)
+    # print(f"Agent (nous-hermes2) Response: {response_3}")
+    # Using default model for actual test run to avoid dependency on too many models
+    response_3_default = agent.process_request(test_input_3)
+    print(f"Agent ({agent.model_name}) Response: {response_3_default}")

@@ -1,106 +1,83 @@
 # tools.py
-from knowledge_base import DOCUMENTS, STRUCTURED_DOCUMENTS
+# Now uses ChromaDB for retrieval via knowledge_base_manager
+from react_rag_agent.knowledge_base_manager import get_or_create_collection, query_collection, COLLECTION_NAME
 
-def retrieve_document_simple(query: str) -> str:
-    """
-    Retrieves a document from the simple DOCUMENTS dictionary based on keyword matching.
+# The old functions retrieve_document_simple and retrieve_document_structured are removed
+# as their functionality is replaced by querying ChromaDB.
 
-    Args:
-        query (str): The user's query.
-
-    Returns:
-        str: The content of the relevant document or a "not found" message.
-    """
-    query_lower = query.lower()
-    # Check for direct key matches first
-    if query_lower in DOCUMENTS:
-        return DOCUMENTS[query_lower]
-
-    # Then check for keywords within the query
-    for keyword, doc_text in DOCUMENTS.items():
-        if keyword in query_lower:
-            return doc_text
-    return "No relevant document found in simple knowledge base."
-
-def retrieve_document_structured(query: str) -> str:
-    """
-    Retrieves a document from the STRUCTURED_DOCUMENTS list based on keyword matching
-    within the 'keywords' field or 'id' of each document.
-
-    Args:
-        query (str): The user's query.
-
-    Returns:
-        str: The text of the relevant document or a "not found" message.
-    """
-    query_lower = query.lower()
-
-    # Check for ID match
-    for doc in STRUCTURED_DOCUMENTS:
-        if doc["id"] == query_lower:
-            return doc["text"]
-
-    # Check for keyword matches
-    best_match_doc = None
-    max_keyword_matches = 0
-
-    for doc in STRUCTURED_DOCUMENTS:
-        current_matches = 0
-        for keyword in doc["keywords"]:
-            if keyword in query_lower:
-                current_matches +=1
-
-        if current_matches > max_keyword_matches:
-            max_keyword_matches = current_matches
-            best_match_doc = doc
-
-    if best_match_doc:
-        return best_match_doc["text"]
-
-    return "No relevant document found in structured knowledge base."
-
-
-# For this agent, we will primarily use the structured retrieval for better demonstration
-def retrieve_information(query: str) -> str:
+def retrieve_information(query: str, n_results: int = 1) -> str:
     """
     Primary retrieval function for the agent.
-    Currently defaults to using the structured retrieval.
+    Queries the ChromaDB collection for relevant documents.
+
+    Args:
+        query (str): The user's query text.
+        n_results (int): Number of results to retrieve from ChromaDB.
+
+    Returns:
+        str: A formatted string containing the retrieved document(s) or a "not found" message.
     """
-    # We could add logic here to choose which retrieval to use,
-    # or combine results. For now, just use the structured one.
-    retrieved_text = retrieve_document_structured(query)
+    try:
+        collection = get_or_create_collection(collection_name=COLLECTION_NAME)
+        query_results = query_collection(collection, query_text=query, n_results=n_results)
 
-    if "No relevant document found" in retrieved_text:
-        # Fallback to simple retrieval if structured fails
-        retrieved_text_simple = retrieve_document_simple(query)
-        if "No relevant document found" not in retrieved_text_simple:
-            return retrieved_text_simple # Return simple's finding
+        if query_results and query_results.get('documents') and query_results['documents'][0]:
+            # Assuming documents[0] is a list of document texts for the first query
+            # For n_results=1, this will be a list with one document.
+            # We can concatenate if n_results > 1, or just return the top one.
 
-    return retrieved_text
+            # Example: Return the text of the top document
+            # top_document_text = query_results['documents'][0][0]
+            # top_document_id = query_results['ids'][0][0]
+            # top_document_distance = query_results['distances'][0][0]
+            # top_document_metadata = query_results['metadatas'][0][0]
+            # return f"Retrieved (ID: {top_document_id}, Distance: {top_document_distance:.4f}): \"{top_document_text}\" (Source: {top_document_metadata.get('source', 'N/A')})"
+
+            # Concatenate multiple results if n_results > 1
+            formatted_results = []
+            for i in range(len(query_results['documents'][0])):
+                doc_text = query_results['documents'][0][i]
+                doc_id = query_results['ids'][0][i]
+                doc_distance = query_results['distances'][0][i]
+                doc_metadata = query_results['metadatas'][0][i]
+                formatted_results.append(
+                    f"Doc ID {doc_id} (Similarity: {1-doc_distance:.2f}): {doc_text}"
+                    # Chroma often returns cosine distance (0=identical, 1=different), so 1-dist can be similarity.
+                    # Or simply show distance: (Distance: {doc_distance:.4f})
+                )
+            return "\n".join(formatted_results)
+
+        else:
+            return "No relevant document found in ChromaDB for your query."
+    except Exception as e:
+        print(f"Error during retrieve_information: {e}")
+        return f"Error retrieving information from ChromaDB: {e}"
 
 if __name__ == '__main__':
-    print("Testing tools.py...")
+    print("Testing tools.py with ChromaDB integration...")
+    print("Ensure ChromaDB is populated by running knowledge_base_manager.py first.")
 
-    queries = [
-        "python",
-        "tell me about ai",
-        "what is java?",
-        "explain RAG",
-        "what is react paradigm",
-        "nonexistent topic"
+    test_queries = [
+        "What is Python?",
+        "Tell me about AI",
+        "Explain RAG technology",
+        "What is ReAct?",
+        "Information on Java language",
+        "A topic not in the database like 'underwater basket weaving'"
     ]
 
-    print("\n--- Using retrieve_information (primary for agent) ---")
-    for q in queries:
-        print(f"Query: \"{q}\" -> Result: \"{retrieve_information(q)}\"")
+    print("\n--- Testing retrieve_information (from ChromaDB) ---")
+    for q_text in test_queries:
+        print(f"\nQuery: \"{q_text}\"")
+        retrieved_docs = retrieve_information(q_text, n_results=2) # Ask for 2 results
+        print(f"Result:\n{retrieved_docs}")
 
-    print("\n--- Using retrieve_document_simple ---")
-    for q in queries:
-        print(f"Query: \"{q}\" -> Result: \"{retrieve_document_simple(q)}\"")
+    # Test with a query that might match a specific ID if IDs are descriptive or part of text
+    # (Though ChromaDB primarily matches on semantic content of the text)
+    print(f"\nQuery: \"doc1\"") # This will search for the text "doc1" semantically
+    retrieved_docs_id_query = retrieve_information("doc1", n_results=1)
+    print(f"Result:\n{retrieved_docs_id_query}")
 
-    print("\n--- Using retrieve_document_structured ---")
-    for q in queries:
-        print(f"Query: \"{q}\" -> Result: \"{retrieve_document_structured(q)}\"")
-
-    print(f"Query: \"doc1\" -> Result: \"{retrieve_information('doc1')}\"") # Test ID retrieval
-    print(f"Query: \"doc3\" -> Result: \"{retrieve_information('doc3')}\"") # Test ID retrieval
+    print(f"\nQuery: \"Python programming language\"") # More specific query
+    retrieved_docs_specific = retrieve_information("Python programming language", n_results=1)
+    print(f"Result:\n{retrieved_docs_specific}")

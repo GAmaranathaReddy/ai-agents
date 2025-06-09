@@ -22,55 +22,118 @@ Combining ReAct and RAG creates a powerful agent. The ReAct framework provides t
 
 ## Implementation
 
-This project demonstrates a simplified ReAct + RAG flow:
+This project demonstrates an advanced ReAct + RAG flow where the **Reasoning** and **Generation** aspects are powered by a Large Language Model (LLM) via Ollama, and the **Retrieval** part uses ChromaDB as a vector store.
 
-1.  **`knowledge_base.py`**:
-    *   Defines two simple Python dictionaries (`DOCUMENTS` and `STRUCTURED_DOCUMENTS`) that act as our external knowledge store. This is the "KB" that RAG will retrieve from.
+1.  **`knowledge_base_manager.py`**:
+    *   Manages the ChromaDB vector database.
+    *   Uses `sentence-transformers` (e.g., `all-MiniLM-L6-v2`) for embedding documents and queries.
+    *   Handles ChromaDB client initialization, collection management, document addition (with embeddings), and querying.
+    *   Running `python react_rag_agent/knowledge_base_manager.py` initializes and populates the DB.
 
 2.  **`tools.py`**:
-    *   Defines `retrieve_information(query)` function. This function simulates a retrieval tool.
-    *   It searches the `DOCUMENTS` and `STRUCTURED_DOCUMENTS` in `knowledge_base.py` for text relevant to the `query`.
-    *   This is the "Retrieval" part of RAG, and it's an "Action" the ReAct agent can perform.
+    *   The `retrieve_information(query)` function interfaces with `knowledge_base_manager.py` to fetch relevant documents from ChromaDB based on semantic similarity.
 
-3.  **`agent.py`**:
-    *   Defines the `ReActRAGAgent` class.
-    *   The `reason_and_act(user_input)` method is the core:
-        *   **Reasoning**: It analyzes the `user_input`.
-            *   It checks if the input matches specific keywords (e.g., "python", "ai", "doc1") or phrases (e.g., "tell me about", "what is").
-            *   Based on this analysis, it decides whether it needs to use the `retrieve_information` tool. This decision is logged in a `thought_process` list (simulating the explicit reasoning of ReAct).
-        *   **Acting**: If the reasoning step determines a retrieval is necessary, it calls `retrieve_information(query_for_retrieval)` with the appropriate query. The result (or lack thereof) is an "Observation."
-        *   **Generation**: It then formulates a response.
-            *   If information was successfully retrieved, the response is *augmented* with this information (this is the "Augmented Generation" part of RAG).
-            *   If no retrieval was deemed necessary, or if retrieval failed, it provides a default or alternative response.
-    *   The agent's internal `thought_process` (though not fully exposed in the final CLI output for brevity) shows the ReAct cycle: analyzing input, deciding on an action (retrieval), executing the action, and observing the outcome to generate a final response.
+3.  **`agent.py` (`ReActRAGAgent` class - Significantly Updated)**:
+    *   **LLM Integration**: Imports `ollama` and `json`. It's initialized with an Ollama model name (e.g., "mistral") for its reasoning and generation tasks.
+    *   **`reason_and_act(user_input: str)` Method - Core Logic**:
+        1.  **Phase 1: Query Analysis & Search Query Formulation (LLM Call 1)**:
+            *   The agent first sends the `user_input` to the LLM (e.g., Mistral via Ollama).
+            *   A carefully crafted prompt instructs the LLM to:
+                *   Determine the user's `intent`: Is it "information_seeking" (requiring KB lookup) or "direct_answer" (general chat/question)?
+                *   If "information_seeking", generate a concise `search_query` suitable for the vector database.
+                *   If "direct_answer", generate a preliminary `llm_response`.
+            *   The LLM is asked to return this analysis in **JSON format**. The agent parses this JSON.
+            *   Includes error handling for the LLM call and JSON parsing, with fallbacks (e.g., defaulting to using the original user input as the search query).
+            *   The agent logs these initial reasoning steps.
+        2.  **Phase 2: Retrieval (Action, if "information_seeking")**:
+            *   If the LLM identified the intent as "information_seeking" and provided a `search_query`:
+                *   The agent calls `retrieve_information(search_query)` (from `tools.py`), which queries ChromaDB.
+                *   The retrieved document(s) are stored.
+            *   The agent logs the retrieval action and its outcome.
+        3.  **Phase 3: Response Synthesis (LLM Call 2 or Direct Answer)**:
+            *   **If information was retrieved**: The agent makes a *second* call to the LLM. This prompt includes the original `user_input` and the `retrieved_info` from ChromaDB. The LLM is asked to synthesize a comprehensive final answer based on both.
+            *   **If no retrieval was needed (intent was "direct_answer")**: The `llm_response` from Phase 1 is used as the final answer.
+            *   **Fallback**: If errors occurred or no useful information was obtained, a default or LLM-generated general response is provided.
+        4.  **Output**: The method returns a dictionary containing a detailed `thought_process` (list of steps), `action_taken` (describing the multi-step process), the `query_for_retrieval` (if any), `retrieved_info` (if any), and the `final_response`.
 
-4.  **`main.py`**:
-    *   Provides a simple command-line interface (CLI) to interact with the `ReActRAGAgent`.
+4.  **`main.py` (CLI)** and **`app_ui.py` (Streamlit UI)**:
+    *   These interfaces interact with the agent. The Streamlit UI is particularly helpful for visualizing the detailed `thought_process`, `action_taken`, `retrieved_info`, and `final_response` from the agent's structured output.
 
-The flow is:
-User Input -> Agent Reasons (is retrieval needed?) -> Agent Acts (calls `retrieve_information`) -> Agent Gets Observation (retrieved text) -> Agent Generates Response (using retrieved text).
+5.  **`knowledge_base.py` (DELETED)**:
+    *   The old dictionary-based KB is obsolete and has been removed.
+
+The agent's flow is now more sophisticated:
+User Input -> **LLM (Analysis: Intent & Search Query Generation)** -> [Optional: Tool (ChromaDB Retrieval using generated query)] -> **LLM (Synthesis using retrieved context if available, or direct answer)** -> Final Response.
+
+## Prerequisites & Setup
+
+### 1. Ollama and LLM Model
+   *   **Install Ollama**: Ensure Ollama is installed and running. See the [Ollama official website](https://ollama.com/).
+   *   **Pull an LLM Model**: The agent defaults to `"mistral"`. You need this model (or your chosen alternative) pulled in Ollama.
+     ```bash
+     ollama pull mistral
+     ```
+     For potentially better JSON handling and instruction following required by this agent, models like `"mistral"` or `"nous-hermes2"` (or other fine-tuned instruction models) are recommended. Ensure the model specified in `agent.py` is available.
+   *   **Install Ollama Python Client**:
+     ```bash
+     pip install ollama
+     ```
+
+### 2. Knowledge Base (ChromaDB)
+    *   **Install Dependencies**: You'll need `chromadb` and `sentence-transformers`.
+      ```bash
+      pip install chromadb sentence-transformers
+      ```
+    *   **Initialize and Populate Database**: Run the knowledge base manager script *once* before using the agent:
+      ```bash
+      python react_rag_agent/knowledge_base_manager.py
+      ```
+      This creates a local ChromaDB instance in `./react_rag_agent/chroma_db_data/` and populates it with sample documents.
+
+*(If using Poetry for the main project, add `ollama`, `chromadb`, and `sentence-transformers` to your `pyproject.toml` and run `poetry install`.)*
 
 ## How to Run
 
-1.  **Navigate to the project directory**:
-    Open your terminal or command prompt.
+**(Ensure you have completed all Prerequisites & Setup steps above: Ollama running, model pulled, Python packages installed, and ChromaDB initialized.)**
+
+1.  **Navigate to the agent's directory** (if running CLI) or **repository root** (if running Streamlit UI):
+    Before running the agent (CLI or UI) for the first time, or whenever you want to ensure the KB is set up with the sample documents, run the `knowledge_base_manager.py` script once:
+    ```bash
+    python react_rag_agent/knowledge_base_manager.py
+    ```
+    This script will:
+    *   Create a persistent ChromaDB database in a folder named `chroma_db_data` within the `react_rag_agent` directory.
+    *   Define a collection named `rag_documents`.
+    *   Add a set of sample documents (related to Python, Java, AI, ReAct, RAG) to the collection, generating their embeddings using the `all-MiniLM-L6-v2` model.
+    *   Perform a test query to confirm setup.
+    You only need to run this script once initially, or if you modify the sample documents within `knowledge_base_manager.py` and want to re-populate the database.
+
+## How to Run
+
+**(Ensure you have completed the Knowledge Base Setup above first.)**
+
+1.  **Navigate to the agent's directory** (if running CLI) or **repository root** (if running Streamlit UI):
+    For CLI:
     ```bash
     cd path/to/your/react_rag_agent
     ```
+    For Streamlit UI (assuming it's run from root):
+    ```bash
+    cd path/to/your/repository_root
+    ```
 
-2.  **Ensure all files are present**:
-    You should have `agent.py`, `tools.py`, `knowledge_base.py`, and `main.py` in this directory.
-
-3.  **Run the `main.py` script**:
+2.  **Run the `main.py` script (CLI)**:
+    (Ensure you are in the `react_rag_agent` directory)
     ```bash
     python main.py
     ```
-    Or, if you have multiple Python versions, you might need to use `python3`:
+    Or, if you have multiple Python versions:
     ```bash
     python3 main.py
     ```
+    *(The CLI and UI now use the ChromaDB-backed knowledge base.)*
 
-4.  **Interact with the Agent**:
+3.  **Interact with the Agent via CLI**:
     The CLI will start. Try asking questions about the topics in the knowledge base.
     ```
     ReAct-RAG Agent CLI
