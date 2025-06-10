@@ -43,13 +43,13 @@ def main():
         st.session_state.chat_ui_history.append((st.session_state.memory_agent.name, agent_response))
 
         # Rerun to update the chat display and clear input
-        st.experimental_rerun()
+        st.rerun()
 
 
     # Sidebar to display memory
     st.sidebar.header("Agent's Memory")
     if st.sidebar.button("Refresh Memory View"):
-        st.sidebar.experimental_rerun() # To get latest memory after interaction
+        st.rerun() # To get latest memory after interaction
 
     with st.sidebar.expander("🧠 Learned Facts", expanded=False):
         facts = st.session_state.memory_agent.memory.get_all_facts()
