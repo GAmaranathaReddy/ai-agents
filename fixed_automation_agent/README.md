@@ -1,44 +1,70 @@
 # Fixed Automation Agent
 
-## Fixed Automation Agent Pattern
+## Fixed Automation Agent (LLM-Enhanced for NLU)
 
-A Fixed Automation Agent operates based on a predefined set of rules, logic, or a fixed workflow. Unlike more dynamic or intelligent agents, its behavior is explicitly programmed and does not typically involve learning or complex decision-making beyond its established rules.
+A Fixed Automation Agent typically operates based on a predefined set of rules or a fixed workflow. This enhanced version leverages a Large Language Model (LLM) via Ollama for Natural Language Understanding (NLU), allowing it to interpret more flexible user commands while still executing a fixed set of predefined tasks.
 
-These agents are designed for tasks that are well-defined and repetitive. They follow a script or a flowchart of operations. If the input matches a certain condition, a specific action is taken. If it doesn't match any predefined conditions, it usually responds with a default message or indicates an inability to process the input.
+Instead of relying on rigid keyword matching or regex, the agent sends the user's natural language input to an LLM. The LLM's role is to:
+1.  Identify which of the agent's known tasks the user intends to perform (e.g., "greet", "add", "multiply", "about").
+2.  Extract necessary parameters for those tasks (e.g., numbers for addition/multiplication).
+3.  Return this structured information (e.g., in JSON format) to the agent.
 
-Examples include:
-*   Simple chatbots with canned responses triggered by keywords.
-*   Automated systems that perform specific data processing steps in a fixed order.
-*   Basic calculators or tools that perform a limited set of operations based on direct commands.
-
-The key characteristic is the deterministic nature of the agent's response to a given input.
+The agent then uses this structured output from the LLM to call its internal, fixed functions that perform the actual tasks. This combines the flexibility of natural language input with the reliability and predictability of fixed automation tasks.
 
 ## Implementation
 
-This project provides a simple demonstration of the Fixed Automation Agent pattern:
+This project demonstrates the LLM-enhanced Fixed Automation Agent pattern:
 
-1.  **`automation.py`**:
-    *   Defines a `FixedAutomationAgent` class.
-    *   The `__init__` method initializes the agent.
-    *   The `process_request(user_input)` method contains the core logic. It uses a series of `if/elif/else` conditional statements (or in this case, direct `if` checks and a regex match) to determine the response:
-        *   It checks for greeting keywords ("hello", "hi").
-        *   It checks for an "about" command.
-        *   It uses regular expressions (`re.match`) to parse commands for simple arithmetic:
-            *   `add X Y`: to add two numbers.
-            *   `multiply X Y`: to multiply two numbers.
-        *   If none of these predefined rules are met, it returns a default "I don't understand" message.
-    *   This demonstrates a rule-based approach where the agent's responses are directly tied to specific input patterns.
+1.  **`automation.py` (`FixedAutomationAgent` class - Updated)**:
+    *   The agent is initialized with an Ollama model name (e.g., "mistral").
+    *   The core tasks (greeting, about, addition, multiplication) are implemented as private methods (`_perform_greeting()`, `_perform_about()`, `_perform_addition(num1, num2)`, `_perform_multiplication(num1, num2)`). These methods contain the actual fixed logic.
+    *   The main `process_request(user_input: str)` method is rewritten:
+        *   It constructs a detailed prompt for the configured Ollama LLM. This prompt instructs the LLM to analyze the `user_input`, identify the intended task from a predefined list ("greet", "about", "add", "multiply", "unknown"), and extract numbers if the task is "add" or "multiply".
+        *   The LLM is specifically asked to respond in JSON format, e.g., `{"task": "add", "numbers": [5, 3]}`.
+        *   It calls `ollama.chat()` with the user input and the prompt, requesting JSON output.
+        *   It parses the JSON response from the LLM to get the identified `task` and `numbers`.
+        *   Based on the `task`, it calls the appropriate private method (e.g., `_perform_addition(*numbers)`).
+        *   It includes error handling for LLM communication issues and JSON parsing errors.
+        *   It returns a dictionary containing the `user_input`, the `llm_interpretation` (parsed JSON), the `final_result` from the executed task, and any `error` messages.
 
-2.  **`main.py`**:
-    *   Provides a simple command-line interface (CLI) to interact with the `FixedAutomationAgent`.
-    *   It instantiates the agent, takes user input in a loop, passes it to the agent's `process_request` method, and prints the agent's fixed response.
+2.  **`main.py` (CLI)**:
+    *   Provides a command-line interface. It now prints the structured dictionary returned by `process_request`, showing both the LLM's interpretation and the final result.
 
-The agent does not learn or adapt; it strictly follows its programmed rules. If you type "add 10 5", it will always give you the sum. If you type something outside its rules, like "what's the weather?", it will give its default non-understanding response.
+3.  **`app_ui.py` (Streamlit UI - Updated)**:
+    *   The Streamlit UI is updated to reflect the agent's new capabilities.
+    *   It encourages natural language input.
+    *   It displays the LLM's interpretation (the JSON) to provide transparency into how the user's command was understood, followed by the agent's final result or any errors.
+
+The agent still performs a fixed set of tasks, but its ability to understand *how* to trigger those tasks is now enhanced by an LLM.
+
+## Prerequisites & Setup
+
+1.  **Ollama and LLM Model**:
+    *   **Install Ollama**: Ensure Ollama is installed and running. See [Ollama official website](https://ollama.com/).
+    *   **Pull an LLM Model**: The agent defaults to `"mistral"`. You need this model (or your chosen alternative that's good at following JSON format instructions) pulled in Ollama.
+      ```bash
+      ollama pull mistral
+      ```
+    *   **Install Ollama Python Client**:
+      ```bash
+      pip install ollama
+      ```
+
+2.  **Streamlit (for UI)**:
+    *   If you want to use the web UI, install Streamlit:
+      ```bash
+      pip install streamlit
+      ```
+
+*(If using Poetry for the main project, add `ollama` and `streamlit` to your `pyproject.toml` and run `poetry install`.)*
 
 ## How to Run
 
-1.  **Navigate to the project directory**:
-    Open your terminal or command prompt.
+**(Ensure you have completed all Prerequisites & Setup steps above: Ollama running, model pulled, and Python packages installed.)**
+
+### 1. Command-Line Interface (CLI)
+
+1.  **Navigate to the agent's directory**:
     ```bash
     cd path/to/your/fixed_automation_agent
     ```
@@ -47,50 +73,40 @@ The agent does not learn or adapt; it strictly follows its programmed rules. If 
     ```bash
     python main.py
     ```
-    Or, if you have multiple Python versions, you might need to use `python3`:
+    Or using `python3`:
     ```bash
     python3 main.py
     ```
 
-3.  **Interact with the Agent**:
-    The CLI will start. Type your commands and press Enter.
+3.  **Interact with the Agent via CLI**:
+    The CLI will start. Type your commands in natural language.
     ```
-    Fixed Automation Agent CLI
-    Powered by: RuleBot V1
-    Type 'exit' or 'quit' to stop.
-    Example commands: 'hello', 'about', 'add X Y', 'multiply X Y'
-    ------------------------------
-    You: hello
-    Agent: Hello! I am RuleBot V1. I can perform simple calculations like 'add X Y' or tell you about myself if you type 'about'.
-    You: add 25 75
-    Agent: The sum of 25 and 75 is 100.
-    You: multiply 5 8
-    Agent: The product of 5 and 8 is 40.
-    You: tell me a joke
-    Agent: I'm sorry, I don't understand that command. Try 'add X Y', 'multiply X Y', 'about', or say 'hello'.
-    You: exit
-    Exiting agent CLI. Goodbye!
+    User: hello there
+      LLM Interpretation: {'task': 'greet', 'numbers': None}
+      Agent Final Result: Hello! I am RuleBot V2 (LLM-Enhanced). I can help with greetings, info about myself, addition, and multiplication.
+
+    User: what is 12 plus 8
+      LLM Interpretation: {'task': 'add', 'numbers': [12, 8]}
+      Agent Final Result: The sum of 12 and 8 is 20.0.
     ```
 
 ### Web UI (Streamlit)
 
-This agent also features a simple web-based user interface built using Streamlit.
+This agent also features an LLM-enhanced web UI built using Streamlit.
 
-1.  **Install Streamlit**:
-    If you haven't already, you'll need Streamlit. If your main project uses Poetry, consider adding it there. For a local setup:
-    ```bash
-    pip install streamlit
-    ```
+1.  **Ensure Dependencies are Installed**:
+    Make sure `streamlit` and `ollama` are installed (see Prerequisites).
 
 2.  **Run the Streamlit App**:
-    To launch the web UI, navigate to the root directory of this repository (where the main `README.md` is located) and execute:
+    Navigate to the root directory of this repository and execute:
     ```bash
     streamlit run fixed_automation_agent/app_ui.py
     ```
-    This command will typically open the UI in your default web browser.
+    This will open the UI in your web browser.
 
 3.  **Interact with the Agent via Web**:
-    *   The web page will show a title, a brief description of the agent, and a list of example commands.
-    *   Enter a command (e.g., `hello`, `add 10 5`, `about`) into the text input field.
-    *   Click the "Send Command" button.
-    *   The agent's response, based on its fixed rules, will be displayed.
+    *   The web page will provide an input field for your command.
+    *   Enter commands in natural language (e.g., "Can you tell me what 5 times 7 is?", "Say hi to me", "What are you?").
+    *   Click "Send Command".
+    *   The UI will display the "LLM Interpretation" (the JSON object showing how the LLM understood your command) and then the "Agent's Final Result".
+```

@@ -1,135 +1,112 @@
 # Self-Learning Agent (Rock-Paper-Scissors Example)
 
-## Self-Learning Agent Pattern
+## Self-Learning Agent (Rock-Paper-Scissors with LLM Analysis)
 
-A Self-Learning Agent is an agent that improves its performance, decision-making, or knowledge over time by learning from its experiences and interactions. Unlike agents with fixed logic, a self-learning agent adapts its behavior based on feedback, new data, or observed outcomes.
+A Self-Learning Agent improves its performance or knowledge over time by learning from experiences. This Rock-Paper-Scissors (RPS) agent demonstrates two aspects:
+1.  **Basic Frequency-Based Learning**: It learns the opponent's (human player's) move tendencies and tries to play a counter-move.
+2.  **LLM-Powered Analysis**: It uses an Ollama LLM to provide a natural language analysis of the opponent's play style after a sufficient number of moves.
 
-The core components of this pattern usually involve:
+The core components:
+*   **Experience Collection**: Records the player's move history.
+*   **Knowledge Representation**: Stores frequency counts of player's moves (`move_counts`).
+*   **Learning Mechanism**: Updates `move_counts` after each round.
+*   **Action Strategy**: Chooses randomly initially, then uses `move_counts` to predict and counter the player's most frequent move.
+*   **LLM Analysis**: Uses an LLM to analyze the sequence of player moves and describe potential patterns.
 
-1.  **Experience/Data Collection**: The agent gathers data from its interactions or environment. This could be user inputs, game outcomes, sensor readings, etc.
-2.  **Knowledge Representation/Memory**: The agent has a way to store and organize the information it learns. This might be a simple frequency count, a more complex model, a set of rules, or a neural network.
-3.  **Learning Mechanism**: A process by which the agent updates its internal knowledge or model based on new experiences. This is where the "learning" happens.
-4.  **Action Strategy**: The agent uses its current knowledge to make decisions or choose actions, intending to perform better as its knowledge grows.
+## Implementation
 
-The goal is for the agent to become more effective, efficient, or accurate as it gains more experience.
-
-## Implementation (Rock-Paper-Scissors Example)
-
-This project demonstrates a simple self-learning agent that plays Rock-Paper-Scissors (RPS) against a human player. The agent tries to learn the player's move patterns to improve its chances of winning.
-
-1.  **`agent.py`**:
-    *   Defines the `SelfLearningAgent_RPS` class.
-    *   **Knowledge Representation/Memory**:
-        *   `opponent_move_history` (list): Stores a chronological list of all valid moves made by the human player.
-        *   `move_counts` (dictionary): Keeps track of the frequency of each move the opponent has made (e.g., `{"rock": 5, "paper": 3, "scissors": 2}`).
-    *   **`learn(opponent_last_move: str)` method (Learning Mechanism)**:
-        *   This method is called after each round.
-        *   It takes the `opponent_last_move` (the human player's move for that round) as input.
-        *   It appends this move to `opponent_move_history`.
-        *   It increments the count for `opponent_last_move` in the `move_counts` dictionary. This is how the agent updates its understanding of the opponent's tendencies.
-    *   **`choose_action()` method (Action Strategy)**:
-        *   This method decides the agent's next move (rock, paper, or scissors).
-        *   **Initial Phase**: If the `opponent_move_history` is short (e.g., fewer than 3 moves, defined by `random_choice_threshold`), the agent doesn't have enough data to make an informed prediction, so it chooses a move randomly.
-        *   **Learning Phase**: Once enough data is collected, the agent attempts to predict the opponent's next move by looking at `move_counts`. It identifies which of the opponent's moves ("rock", "paper", or "scissors") has been the most frequent so far.
-        *   **Counter-Action**: After predicting the opponent's likely move, the agent chooses the action that would beat that predicted move (e.g., if it predicts the opponent will play "rock", the agent plays "paper").
-    *   `reset_memory()`: A utility to clear the agent's learned history and counts.
+1.  **`agent.py` (`SelfLearningAgent_RPS` class - Updated)**:
+    *   Initialized with an Ollama `llm_model` (e.g., "mistral") for the analysis feature.
+    *   **Frequency-Based Learning**:
+        *   `opponent_move_history` (list): Stores the player's moves.
+        *   `move_counts` (dictionary): Tracks frequency of "rock", "paper", "scissors".
+        *   `learn(opponent_last_move: str)`: Updates history and counts.
+        *   `choose_action()`: Plays randomly if history is short; otherwise, predicts player's most frequent move and plays the counter.
+    *   **LLM-Powered Analysis (New)**:
+        *   `get_llm_analysis_of_opponent()`:
+            *   Checks if enough moves (`min_history_for_analysis`) have been played.
+            *   Formats the `opponent_move_history` into a string.
+            *   Constructs a prompt asking the Ollama LLM to act as a game strategy analyst and describe observable patterns or tendencies in the opponent's moves.
+            *   Calls `ollama.chat()` to get the analysis.
+            *   Returns the LLM's textual analysis or an error message.
+    *   `reset_memory()`: Clears history and counts.
 
 2.  **`game.py`**:
-    *   Contains a helper function `determine_winner(agent_move: str, player_move: str)` which takes the agent's and player's moves and returns "agent", "player", or "tie" based on standard RPS rules.
+    *   `determine_winner(agent_move: str, player_move: str)`: Standard RPS win/loss/tie logic.
 
-3.  **`main.py`**:
-    *   Initializes the `SelfLearningAgent_RPS`.
-    *   Manages the game loop for a set number of rounds (e.g., 10).
-    *   In each round:
-        1.  The agent calls `choose_action()` to select its move.
-        2.  The human player is prompted to enter their move (with input validation).
-        3.  `determine_winner()` is called to find out the result of the round.
-        4.  The outcome is printed, and scores are updated.
-        5.  Crucially, the agent's `learn(player_move)` method is called, allowing it to update its knowledge based on the player's actual move.
-    *   After all rounds, the final scores and the agent's learned `move_counts` are displayed, showing what patterns the agent picked up on.
+3.  **`main.py` (CLI)**:
+    *   Manages the RPS game loop against the agent.
+    *   Calls `agent.learn()` after each round.
+    *   Displays scores and final learned `move_counts`. (Does not currently use the LLM analysis feature).
 
-This implementation demonstrates a basic form of frequency analysis for learning. As the game progresses, if the player exhibits any habitual patterns (e.g., playing "rock" more often), the agent's `move_counts` will reflect this, and its `choose_action` strategy will increasingly try to counter that pattern.
+4.  **`app_ui.py` (Streamlit UI - Updated)**:
+    *   Provides an interactive web interface for playing RPS.
+    *   Displays game state, scores, and the agent's learned `move_counts` (frequency analysis).
+    *   **New Feature**: Includes a button "🕵️ Get LLM Analysis of Your Play Style". When clicked, it calls `agent.get_llm_analysis_of_opponent()` and displays the LLM's textual analysis of the player's moves.
+
+## Prerequisites & Setup
+
+1.  **Ollama and LLM Model (for Analysis Feature)**:
+    *   **Install Ollama**: Ensure Ollama is installed and running. See [Ollama official website](https://ollama.com/).
+    *   **Pull an LLM Model**: The agent defaults to `"mistral"` for analysis.
+      ```bash
+      ollama pull mistral
+      ```
+    *   **Install Ollama Python Client**:
+      ```bash
+      pip install ollama
+      ```
+
+2.  **Streamlit (for UI)**:
+    *   Install Streamlit:
+      ```bash
+      pip install streamlit
+      ```
+
+*(If using Poetry for the main project, add `ollama` and `streamlit` to your `pyproject.toml` and run `poetry install`.)*
 
 ## How to Run
 
-1.  **Navigate to the project directory**:
-    Open your terminal or command prompt.
+**(Ensure Ollama is running and the required model is pulled if you intend to use the LLM analysis feature in the UI.)**
+
+### 1. Command-Line Interface (CLI)
+
+1.  **Navigate to the agent's directory**:
     ```bash
     cd path/to/your/self_learning_agent
     ```
 
-2.  **Ensure all files are present**:
-    You should have `agent.py`, `game.py`, and `main.py` in this directory.
-
-3.  **Run the `main.py` script**:
+2.  **Run the `main.py` script**:
     ```bash
     python main.py
     ```
-    Or, if you have multiple Python versions, you might need to use `python3`:
+    Or using `python3`:
     ```bash
     python3 main.py
     ```
+    The CLI version focuses on the frequency-based learning aspect of the agent.
 
-4.  **Play the Game**:
-    *   The script will welcome you and explain the rules.
-    *   In each round, it will display current scores and prompt you for your move ("rock", "paper", or "scissors").
-    *   After you enter your move, it will show the agent's move, the result of the round, and then proceed to the next round.
-    *   The game continues for a predefined number of rounds (default 10).
-    *   At the end, it will show the final scores and what the agent "learned" about your move frequencies.
-
-    **Example Interaction Snippet**:
-    ```
-    --- Welcome to Rock-Paper-Scissors against the Self-Learning Agent! ---
-    You will play 10 rounds against LearnerBot-RPS.
-    The agent will try to learn your patterns.
-    Type 'rock', 'paper', or 'scissors'. Type 'exit' or 'quit' to end early.
-    ------------------------------
-
-    --- Round 1/10 ---
-    Scores: Player - 0, LearnerBot-RPS - 0, Ties - 0
-    Your move (rock, paper, scissors): rock
-      LearnerBot-RPS played: Paper
-      You played: Rock
-      Result: Agent wins this round!
-
-    --- Round 2/10 ---
-    Scores: Player - 0, LearnerBot-RPS - 1, Ties - 0
-    Your move (rock, paper, scissors): paper
-      LearnerBot-RPS played: Rock
-      You played: Paper
-      Result: You win this round!
-    ...
-    --- Final Results ---
-    Scores: Player - X, LearnerBot-RPS - Y, Ties - Z
-    Congratulations! You beat the agent. / LearnerBot-RPS won the game. / The game was a tie overall!
-
-    LearnerBot-RPS's final learned opponent move counts: {'rock': A, 'paper': B, 'scissors': C}
-    ```
+3.  **Play the Game via CLI**:
+    Follow on-screen prompts to play Rock-Paper-Scissors. The agent will adapt based on your move frequencies.
 
 ### Web UI (Streamlit)
 
-The Self-Learning Rock-Paper-Scissors Agent also comes with an interactive web interface built with Streamlit, allowing you to play against the agent and observe its learning in real-time.
+The Streamlit UI provides the full experience, including the LLM-based play style analysis.
 
-1.  **Install Streamlit**:
-    If you haven't installed it yet, you'll need Streamlit. If your main project uses Poetry, consider adding Streamlit as a dependency there. For a standard local installation:
-    ```bash
-    pip install streamlit
-    ```
+1.  **Ensure Dependencies are Installed**:
+    Make sure `streamlit` and `ollama` are installed.
 
 2.  **Run the Streamlit App**:
-    To launch the web UI, open your terminal, navigate to the root directory of this repository (where the main `README.md` is located), and execute the command:
+    Navigate to the root directory of this repository and execute:
     ```bash
     streamlit run self_learning_agent/app_ui.py
     ```
-    This will typically open the application in your default web browser.
+    This will open the UI in your web browser.
 
-3.  **Play the Game via Web**:
-    *   The web interface will display the game title and a brief description of the agent.
-    *   Click one of the buttons ("🪨 Rock", "📄 Paper", "✂️ Scissors") to make your move.
-    *   After your move, the UI will display:
-        *   Your chosen move and the agent's move for that round.
-        *   The winner of the round.
-    *   "Overall Scores" (Your Wins, Agent Wins, Ties) are updated and displayed.
-    *   You can view the "Agent's Learned Knowledge" in an expandable section, which shows a bar chart and the raw counts of your moves as observed by the agent. This visualization helps you see how the agent's understanding of your pattern evolves.
-    *   A "Reset Game and Agent Memory" button is available in the sidebar if you want to start fresh and clear the agent's learned data.
-    *   Play multiple rounds to see if the agent starts to counter your moves based on its learned frequencies!
+3.  **Play the Game and Get Analysis via Web**:
+    *   Play Rock-Paper-Scissors using the "Rock", "Paper", "Scissors" buttons.
+    *   Observe scores and the "Agent's Learned Knowledge" (your move frequencies).
+    *   After playing several rounds (e.g., 7-10 moves), click the "🕵️ Get LLM Analysis of Your Play Style" button.
+    *   The agent will use Ollama to provide a textual analysis of your move patterns.
+    *   Use the "Reset Game and Agent Memory" button in the sidebar to start over.
+```

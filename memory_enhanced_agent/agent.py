@@ -1,133 +1,104 @@
 # agent.py
-import re
+import ollama
+import json
 from memory import Memory
+import re # Keep re for simple checks if needed, or remove if LLM handles all parsing
 
 class MemoryEnhancedAgent:
-    def __init__(self):
-        self.name = "RecallBot"
+    def __init__(self, llm_model="mistral"):
+        self.name = "RecallBot (LLM-Powered)"
         self.memory = Memory()
+        self.llm_model = llm_model
 
-    def _extract_facts(self, user_input: str) -> dict:
+    # The old _extract_facts and _generate_response methods are removed
+    # as their logic is now handled by the LLM.
+
+    def chat(self, user_input: str) -> str: # Renamed from chat_with_llm for consistency if main.py/app_ui.py use 'chat'
         """
-        Tries to extract key information from user_input to store as facts.
-        Uses simple regular expressions.
+        Main chat processing method using an LLM for conversation, fact extraction,
+        and contextual memory use.
         """
-        facts_to_add = {}
+        known_facts = self.memory.get_all_facts()
+        # Get last 3 turns (user+agent = 1 turn for LLM context) for context, adjust N as needed
+        recent_history_tuples = self.memory.get_last_n_interactions(n=3)
 
-        # Pattern 1: "My name is [Name]." or "I am [Name]."
-        name_match = re.search(r"my name is (\w+)|i am (\w+)", user_input, re.IGNORECASE)
-        if name_match:
-            name = name_match.group(1) or name_match.group(2)
-            if name:
-                facts_to_add["name"] = name.capitalize()
+        # Format history for the LLM prompt
+        formatted_history = ""
+        if recent_history_tuples:
+            history_lines = []
+            for user_turn, agent_turn in recent_history_tuples:
+                history_lines.append(user_turn) # e.g., "user: Hello"
+                history_lines.append(agent_turn) # e.g., "agent: Hi there!"
+            formatted_history = "\n".join(history_lines)
+        else:
+            formatted_history = "No recent conversation history."
 
-        # Pattern 2: "I like [color/food/etc]." or "My favorite [thing] is [value]."
-        like_match = re.search(r"i like (the color )?(\w+)", user_input, re.IGNORECASE)
-        if like_match:
-            # If "the color" is present, group(1) will capture it, group(2) is the color.
-            # Otherwise group(1) is None, group(2) is the liked item.
-            liked_item = like_match.group(2)
-            if "color" in like_match.group(0).lower() or any(c in liked_item for c in ["blue", "red", "green", "yellow", "purple", "orange", "black", "white"]):
-                 facts_to_add["favorite_color"] = liked_item
-            else:
-                facts_to_add["likes"] = liked_item # Generic like
+        # Construct the detailed prompt for Ollama
+        prompt_to_llm = f"""You are a helpful and conversational AI assistant named {self.name}.
+Your task is to chat with the user, remember facts they tell you, and use those facts in conversation.
 
-        fav_match = re.search(r"my favorite (\w+) is (\w+)", user_input, re.IGNORECASE)
-        if fav_match:
-            key = f"favorite_{fav_match.group(1)}"
-            value = fav_match.group(2)
-            facts_to_add[key] = value
+Current known facts about the user (in JSON format):
+{json.dumps(known_facts if known_facts else {})}
 
-        # Pattern 3: "I live in [City/Country]."
-        live_in_match = re.search(r"i live in ([\w\s]+)", user_input, re.IGNORECASE)
-        if live_in_match:
-            location = live_in_match.group(1).strip()
-            facts_to_add["location"] = location.capitalize()
+Recent conversation history (last few turns):
+<conversation_history>
+{formatted_history}
+</conversation_history>
 
-        return facts_to_add
+User's current message: "{user_input}"
 
-    def _generate_response(self, user_input: str, extracted_facts: dict) -> str:
-        """
-        Generates a response, potentially using stored facts or acknowledging new ones.
-        """
-        user_name = self.memory.get_fact("name")
-        greeting = f"Hello{', ' + user_name if user_name else ''}!"
+Based on all the above (known facts, history, and current message):
+1. Generate a natural, friendly, and relevant conversational "response" to the user's current message. If they ask something you know from facts, use that information.
+2. Identify any *new* facts explicitly stated by the user in their *current message* that should be stored or updated in memory. These facts should be key-value pairs. For example, if the user says "My name is Alice", the fact is {{"name": "Alice"}}. If they say "I like blue", it could be {{"likes_color": "blue"}} or {{"favorite_color": "blue"}}. If they say "I live in Paris", it's {{"location": "Paris"}}. If no new facts are explicitly stated, "new_facts_to_store" should be null or an empty dictionary. Do not infer facts not explicitly stated in the *current* message.
 
-        # Check for direct questions about stored facts
-        if "what is my name" in user_input.lower():
-            return f"{user_name}, your name is {user_name}." if user_name else "I don't think I know your name yet."
+Return your output as a single JSON object with two keys: "response" and "new_facts_to_store".
+Example:
+{{"response": "It's nice to meet you, Bob! I'll remember that you like red.", "new_facts_to_store": {{"name": "Bob", "favorite_color": "red"}}}}
+Example if no new facts:
+{{"response": "Hi Alice! You mentioned you like blue. What else are you up to today?", "new_facts_to_store": null}}
+"""
 
-        fav_color_match = re.search(r"what is my favorite color", user_input.lower())
-        if fav_color_match:
-            color = self.memory.get_fact("favorite_color")
-            return f"{user_name if user_name else 'Friend'}, your favorite color is {color}." if color else "I don't know your favorite color."
+        agent_reply = f"Sorry, I encountered an issue processing your request: '{user_input}'." # Default error reply
+        llm_output_str = "" # For debugging JSON errors
 
-        fav_thing_match = re.search(r"what is my favorite (\w+)", user_input.lower())
-        if fav_thing_match:
-            thing_key = f"favorite_{fav_thing_match.group(1)}"
-            thing_value = self.memory.get_fact(thing_key)
-            if thing_value:
-                return f"{user_name if user_name else 'Friend'}, your favorite {fav_thing_match.group(1)} is {thing_value}."
-            else:
-                return f"I don't seem to know your favorite {fav_thing_match.group(1)}."
+        try:
+            # print(f"\n[DEBUG] Prompt to LLM:\n{prompt_to_llm}\n") # For debugging the prompt
+            ollama_response = ollama.chat(
+                model=self.llm_model,
+                messages=[{'role': 'user', 'content': prompt_to_llm}],
+                format='json' # Request JSON output from Ollama
+            )
+            llm_output_str = ollama_response['message']['content']
+            # print(f"[DEBUG] Raw LLM Output: {llm_output_str}") # For debugging
 
-        if "where do i live" in user_input.lower():
-            location = self.memory.get_fact("location")
-            return f"{user_name if user_name else 'Friend'}, you live in {location}." if location else "I don't know where you live."
+            llm_data = json.loads(llm_output_str)
 
+            agent_reply = llm_data.get("response", "I'm not sure how to reply to that right now.")
+            new_facts = llm_data.get("new_facts_to_store")
 
-        # Acknowledge newly learned facts
-        if "name" in extracted_facts and extracted_facts["name"] != user_name: # If name was just learned or changed
-            return f"Nice to meet you, {extracted_facts['name']}! How can I help you today?"
-        if "favorite_color" in extracted_facts:
-            return f"Noted, {user_name if user_name else 'friend'}! Your favorite color is {extracted_facts['favorite_color']}."
-        if "likes" in extracted_facts:
-            return f"Good to know you like {extracted_facts['likes']}, {user_name if user_name else 'friend'}."
-        if any(key.startswith("favorite_") for key in extracted_facts):
-            # Generic acknowledgement for other favorite things
-            for key, value in extracted_facts.items():
-                if key.startswith("favorite_"):
-                    return f"Thanks for sharing that your favorite {key.split('_')[1]} is {value}, {user_name if user_name else 'friend'}!"
-        if "location" in extracted_facts:
-            return f"Okay, {user_name if user_name else 'friend'}, I'll remember you live in {extracted_facts['location']}."
+            if new_facts and isinstance(new_facts, dict):
+                for key, value in new_facts.items():
+                    if isinstance(key, str) and isinstance(value, (str, int, float, bool)): # Basic type check
+                        self.memory.add_fact(key, str(value)) # Ensure value is string for memory
+                        # print(f"[DEBUG] LLM identified new fact: {key} = {value}")
+                    # else:
+                        # print(f"[DEBUG] LLM identified new fact with invalid type: {key} ({type(key)}) = {value} ({type(value)})")
 
+        except json.JSONDecodeError as e:
+            agent_reply = f"Sorry, I received an unexpected format from my AI brain. JSON Error: {e}. Raw: '{llm_output_str[:100]}...'"
+            print(f"[ERROR] JSONDecodeError: {e}. Raw LLM output was: {llm_output_str}")
+        except Exception as e:
+            agent_reply = f"Sorry, an error occurred while I was thinking: {type(e).__name__}. Is Ollama running and model '{self.llm_model}' available?"
+            print(f"[ERROR] Ollama interaction error: {e}")
 
-        # Default responses
-        if "hello" in user_input.lower() or "hi" in user_input.lower():
-            return f"{greeting} How can I help you today?"
+        # Log interaction (user input and final agent reply)
+        self.memory.log_interaction(user_input, agent_reply)
 
-        if "how are you" in user_input.lower():
-            return "I'm doing well, thank you for asking!"
-
-        # Fallback response
-        return f"{user_name if user_name else 'Hey there'}! You said: '{user_input}'. Ask me something else, or tell me about yourself."
-
-    def chat(self, user_input: str) -> str:
-        """
-        Main chat processing method.
-        """
-        # 1. Try to extract facts from user input
-        extracted_facts = self._extract_facts(user_input)
-        acknowledged_new_fact = False
-        if extracted_facts:
-            for key, value in extracted_facts.items():
-                # Check if this is genuinely new information or a change
-                if self.memory.get_fact(key) != value:
-                    self.memory.add_fact(key, value)
-                    acknowledged_new_fact = True # Flag that we learned something to prioritize in response
-
-        # 2. Generate a response
-        # Pass acknowledged_new_fact or the facts themselves to _generate_response
-        # to allow it to prioritize acknowledging new info.
-        # For simplicity, current _generate_response checks extracted_facts directly.
-        agent_response = self._generate_response(user_input, extracted_facts)
-
-        # 4. Log interaction
-        self.memory.log_interaction(user_input, agent_response)
-
-        return agent_response
+        return agent_reply
 
 if __name__ == '__main__':
+    # Ensure Ollama is running and the model (e.g., "mistral") is pulled.
+    # Example: ollama pull mistral
     agent = MemoryEnhancedAgent()
     print(f"Starting chat with {agent.name}...")
 

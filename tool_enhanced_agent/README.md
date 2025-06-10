@@ -1,133 +1,128 @@
 # Tool-Enhanced Agent
 
-## Tool-Enhanced Agent Pattern
+## Tool-Enhanced Agent (LLM-Powered NLU)
 
-A Tool-Enhanced Agent is an autonomous or semi-autonomous system that can leverage external tools or functions to extend its capabilities beyond its core programming. Instead of having all functionalities built-in, the agent possesses a mechanism to identify when a specific task can be better handled by a specialized tool, how to call that tool with the correct inputs, and how to integrate the tool's output back into its response or workflow.
+A Tool-Enhanced Agent leverages external tools or functions to extend its capabilities. This version is enhanced with a Large Language Model (LLM) via Ollama for Natural Language Understanding (NLU), enabling it to interpret user requests in natural language to select the appropriate tool and extract its arguments.
 
-The core components of this pattern typically include:
-1.  **A set of available tools**: These are functions or services that perform specific tasks (e.g., fetching data, performing calculations, interacting with other systems).
-2.  **Decision Logic (Router/Dispatcher)**: The agent needs to analyze incoming requests or its current goal to determine:
-    *   If a tool is needed.
-    *   Which specific tool is appropriate for the task.
-    *   What arguments the tool requires.
-3.  **Argument Parsing**: If a tool requires inputs, the agent must extract or derive these arguments from the user's request or its internal state.
-4.  **Tool Execution**: The agent calls the selected tool with the prepared arguments.
-5.  **Response Integration**: The agent takes the output from the tool and uses it to formulate a final response or to inform its next actions.
+The core components of this enhanced pattern include:
+1.  **A set of available tools**: Functions performing specific tasks (e.g., `get_current_datetime`, `calculate_sum`, `get_weather`).
+2.  **LLM-Powered NLU**: The agent uses an LLM to:
+    *   Analyze the user's natural language input.
+    *   Identify which of the available tools is best suited for the request.
+    *   Extract the necessary arguments for the chosen tool from the input.
+    *   Return this information in a structured format (e.g., JSON).
+3.  **Tool Execution**: The agent calls the selected tool function with the LLM-extracted arguments.
+4.  **Response Generation**: The agent formulates a final response based on the tool's output.
 
-This pattern allows agents to be more versatile and powerful, as they can dynamically access specialized functionalities without needing to implement everything themselves.
+This approach allows for more flexible and intuitive interaction with tool-using agents, as users are not restricted to rigid command formats.
 
 ## Implementation
 
-This project provides a demonstration of the Tool-Enhanced Agent pattern:
+This project demonstrates the LLM-enhanced Tool-Enhanced Agent pattern:
 
 1.  **`tools.py`**:
-    *   Defines a set of simple Python functions that act as our tools:
-        *   `get_current_datetime()`: Returns the current date and time.
-        *   `calculate_sum(a: float, b: float)`: Returns the sum of two numbers.
-        *   `get_weather(city: str)`: Returns a dummy weather string for a given city (simulating an API call).
-    *   These functions are self-contained and perform specific, distinct tasks.
+    *   Defines the actual Python functions that act as tools: `get_current_datetime()`, `calculate_sum(a, b)`, `get_weather(city)`. These remain simple and focused.
 
-2.  **`agent.py`**:
-    *   Defines the `ToolEnhancedAgent` class.
-    *   The core logic resides in the `process_request(user_input: str)` method:
-        *   **Decision Logic & Argument Parsing**:
-            *   It converts the `user_input` to lowercase for case-insensitive matching.
-            *   It uses `if/elif` conditions and regular expressions (`re.search`) to detect keywords and patterns associated with each tool:
-                *   Keywords like "time", "date" trigger `get_current_datetime`. No arguments needed.
-                *   Patterns like "sum of X and Y" or "add X plus Y" trigger `calculate_sum`. The regex captures the two numbers (`X` and `Y`) as arguments. These are then converted to floats.
-                *   Patterns like "weather in [city]" or "what's the weather for [city]" trigger `get_weather`. The regex captures the `[city]` name as an argument.
-        *   **Tool Execution**: If a pattern is matched and necessary arguments are successfully parsed:
-            *   The corresponding function from `tools.py` is called.
-        *   **Response Generation**:
-            *   The output from the tool is used to construct a meaningful response to the user.
-            *   If no tool-specific keywords/patterns are matched, the agent provides a default introductory response, listing its capabilities.
-            *   Basic error handling is included if argument parsing fails (e.g., non-numeric input for sum).
+2.  **`agent.py` (`ToolEnhancedAgent` class - Updated)**:
+    *   Initialized with an Ollama model name (e.g., "mistral").
+    *   Maintains a `tools_description` dictionary detailing each available tool and its expected arguments. This information is used to construct a prompt for the LLM.
+    *   Keeps a `callable_tools` dictionary mapping tool names (strings) to the actual tool functions.
+    *   The `process_request(user_input: str)` method is rewritten:
+        *   It builds a detailed prompt for the LLM, including the descriptions of available tools and the user's input. It instructs the LLM to identify the most appropriate tool and extract its arguments, responding in JSON format (e.g., `{"tool_name": "calculate_sum", "arguments": {"a": 10, "b": 5}}`).
+        *   It calls `ollama.chat()` with `format='json'` to get the LLM's interpretation.
+        *   It parses the JSON response to get the `tool_name` and `arguments` dictionary.
+        *   If a valid tool is identified in `callable_tools`:
+            *   It calls the tool function, dynamically passing the extracted `arguments` using `**arguments`.
+            *   It handles potential type errors for arguments (e.g., converting sum arguments to float).
+        *   It includes error handling for LLM communication, JSON parsing, and tool execution issues.
+        *   It returns a structured dictionary containing `user_input`, `llm_interpretation` (the parsed JSON from LLM), `tool_used`, `tool_input_params`, `tool_output_raw`, `final_response`, and any `error` messages.
 
-3.  **`main.py`**:
-    *   Provides a simple command-line interface (CLI) to interact with the `ToolEnhancedAgent`.
-    *   It takes user input, passes it to the agent's `process_request` method, and prints the agent's response, which may be generated directly by the agent or be based on a tool's output.
+3.  **`main.py` (CLI)**:
+    *   The CLI now interacts with the LLM-enhanced agent, displaying the structured dictionary output, which includes the LLM's interpretation of the command.
 
-This implementation clearly shows the agent's ability to understand different types of requests, select an appropriate tool, extract necessary information for that tool, execute it, and then present the result to the user.
+4.  **`app_ui.py` (Streamlit UI - Updated)**:
+    *   The Streamlit UI is updated to encourage natural language input.
+    *   It now displays the "LLM Interpretation" (the JSON from Ollama showing tool choice and arguments) to provide transparency, alongside other details like the raw tool output and the agent's final response.
+
+## Prerequisites & Setup
+
+1.  **Ollama and LLM Model**:
+    *   **Install Ollama**: Ensure Ollama is installed and running. See [Ollama official website](https://ollama.com/).
+    *   **Pull an LLM Model**: The agent defaults to `"mistral"`. You need this model (or your chosen alternative that's good at following JSON format instructions and tool descriptions) pulled in Ollama.
+      ```bash
+      ollama pull mistral
+      ```
+    *   **Install Ollama Python Client**:
+      ```bash
+      pip install ollama
+      ```
+
+2.  **Streamlit (for UI)**:
+    *   If you want to use the web UI, install Streamlit:
+      ```bash
+      pip install streamlit
+      ```
+
+*(If using Poetry for the main project, add `ollama` and `streamlit` to your `pyproject.toml` and run `poetry install`.)*
 
 ## How to Run
 
-1.  **Navigate to the project directory**:
-    Open your terminal or command prompt.
+**(Ensure you have completed all Prerequisites & Setup steps above: Ollama running, model pulled, and Python packages installed.)**
+
+### 1. Command-Line Interface (CLI)
+
+1.  **Navigate to the agent's directory**:
     ```bash
     cd path/to/your/tool_enhanced_agent
     ```
 
-2.  **Ensure all files are present**:
-    You should have `agent.py`, `tools.py`, and `main.py` in this directory.
-
-3.  **Run the `main.py` script**:
+2.  **Run the `main.py` script**:
     ```bash
     python main.py
     ```
-    Or, if you have multiple Python versions, you might need to use `python3`:
+    Or using `python3`:
     ```bash
     python3 main.py
     ```
 
-4.  **Interact with the Agent**:
-    The CLI will start. You can then type your requests.
-
-    **Example Commands**:
-    *   `What time is it?`
-    *   `Could you tell me the current date?`
-    *   `Calculate the sum of 10 and 5`
-    *   `add 7.5 plus 2.5`
-    *   `What's the weather in London?`
-    *   `weather for Paris`
-    *   `Tell me the weather in Berlin`
-    *   `Hello` (to get the default response)
-
-    **Example Interaction**:
+3.  **Interact with the Agent via CLI**:
+    The CLI will start. Type your requests in natural language.
     ```
-    Tool-Enhanced Agent CLI
-    Powered by: ToolBot Alpha
-    You can ask for the current time/date, calculate sums (e.g., 'add 10 and 5'),
-    or get the weather (e.g., 'what's the weather in London?').
-    Type 'exit' or 'quit' to stop.
+    User Query: "What is the sum of 5 and 7?"
+      LLM Interpretation: {'tool_name': 'calculate_sum', 'arguments': {'a': 5, 'b': 7}}
+      Tool Used: calculate_sum
+      Tool Input: {'a': 5, 'b': 7}
+      Tool Raw Output: The sum of 5.0 and 7.0 is 12.0.
+      Agent Final Response: The sum of 5.0 and 7.0 is 12.0.
     ------------------------------
-    You: What is the current time?
-    Agent: The current date and time is: YYYY-MM-DD HH:MM:SS
-    You: add 15 and 30
-    Agent: The sum of 15 and 30 is 45.0.
-    You: What's the weather in Tokyo?
-    Agent: The weather in Tokyo is experiencing light showers.
-    You: exit
-    Exiting agent CLI. Goodbye!
+
+    User Query: "show me the current time"
+      LLM Interpretation: {'tool_name': 'get_current_datetime', 'arguments': {}}
+      Tool Used: get_current_datetime
+      Tool Input: None
+      Tool Raw Output: 2023-10-27 10:30:00
+      Agent Final Response: The current date and time is: 2023-10-27 10:30:00.
     ```
-    *(Note: The exact date/time will reflect when you run it)*
+    *(Note: The exact date/time and LLM interpretation might vary slightly)*
 
 ### Web UI (Streamlit)
 
-This Tool-Enhanced Agent also comes with a web-based user interface built with Streamlit, allowing for easy interaction.
+This Tool-Enhanced Agent also comes with an LLM-powered web UI built with Streamlit.
 
-1.  **Install Streamlit**:
-    If you don't have it already, install Streamlit. If your main project uses Poetry, you might add Streamlit as a dependency there. For a standard local installation:
-    ```bash
-    pip install streamlit
-    ```
+1.  **Ensure Dependencies are Installed**:
+    Make sure `streamlit` and `ollama` are installed (see Prerequisites).
 
 2.  **Run the Streamlit App**:
-    To launch the web UI, open your terminal, navigate to the root directory of this repository (where the main `README.md` is), and execute:
+    Navigate to the root directory of this repository and execute:
     ```bash
     streamlit run tool_enhanced_agent/app_ui.py
     ```
-    This command will typically open the application in your default web browser.
+    This will open the UI in your web browser.
 
 3.  **Interact with the Agent via Web**:
-    *   The web interface will display a title, a brief explanation, and a text input field for your query.
-    *   A sidebar will list the tools available to the agent and example commands.
-    *   Enter your query (e.g., "What is the current time?", "Calculate the sum of 10 and 5", "weather in London").
-    *   Click the "Send to Agent" button.
-    *   The UI will then display:
-        *   Your original query.
-        *   The "Tool Used" by the agent (if any).
-        *   "Tool Input Parameters" sent to the tool.
-        *   The "Tool's Direct Output".
-        *   Any "Error during processing" (if an error occurred).
-        *   The "Agent's Final Response".
-    This detailed breakdown helps visualize how the agent selected and used a tool.
+    *   The web interface will encourage natural language input.
+    *   A sidebar will list available tools and example natural language commands.
+    *   Enter your query (e.g., "Can you tell me the weather in Paris?", "Add 100 to 55.5", "What's the date today?").
+    *   Click "Send to Agent".
+    *   The UI will display the "LLM Interpretation" (JSON showing tool and args), details of tool execution, and the agent's final response.
+```

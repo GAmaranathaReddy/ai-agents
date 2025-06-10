@@ -1,59 +1,82 @@
 # Environment-Controlled Agent
 
-## Environment-Controlled Agent Pattern
+## Environment-Controlled Agent (LLM-Powered Decision Making)
 
-An Environment-Controlled Agent, often a fundamental concept in AI and robotics, is an agent that operates within a defined environment by following a **perception-action loop**. The agent's behavior is determined by its interaction with this environment. The core cycle involves:
+An Environment-Controlled Agent operates within a defined environment by following a perception-action loop. This enhanced version uses a Large Language Model (LLM) via Ollama for its **Decision-Making** process, allowing it to pursue natural language goals.
 
-1.  **Perception**: The agent observes or senses the current state of its environment. This could involve reading sensor data, querying an API, or accessing shared state variables.
-2.  **Decision-Making (or Deliberation)**: Based on the perceived state and its internal goals or programming, the agent decides what action to take (or to take no action). This logic can range from simple reflex rules to complex planning algorithms.
-3.  **Action**: The agent executes the chosen action, which in turn can modify the state of the environment.
+The core cycle is:
+1.  **Perception**: The agent observes the current state of its environment.
+2.  **Decision-Making (LLM-driven)**: Based on a user-defined **natural language goal** and the perceived state, the agent uses an LLM to:
+    *   Analyze the situation.
+    *   Choose the best action from a predefined set (e.g., "toggle_light", "set_temperature VALUE", "do_nothing").
+    *   Determine any necessary value for that action (e.g., the target temperature).
+    *   Provide an explanation for its choice.
+    The LLM is instructed to return this decision in a structured JSON format.
+3.  **Action**: The agent executes the LLM-chosen action, which modifies the environment's state.
 
-This loop repeats, allowing the agent to react to changes in the environment and work towards its objectives. The environment itself is a crucial component, as it defines the "world" the agent lives in, the states it can be in, and the actions that can affect it.
+This approach makes the agent more flexible, as its behavior can be dynamically altered by changing its natural language goal, without reprogramming its core decision logic (which is now offloaded to the LLM).
 
 ## Implementation
 
-This project provides a simplified demonstration of the Environment-Controlled Agent pattern:
+This project demonstrates the LLM-enhanced Environment-Controlled Agent:
 
-1.  **`environment.py`**:
-    *   Defines an `Environment` class.
-    *   This class manages a simple state consisting of two variables:
-        *   `light_on` (boolean): Represents whether a light is on or off.
-        *   `temperature` (integer): Represents the current temperature.
-    *   It implements:
-        *   `get_state()`: Returns the current dictionary of states.
-        *   `apply_action(action: str, value: any = None)`: Modifies the environment's state based on predefined actions:
-            *   `"toggle_light"`: Flips the boolean value of `light_on`.
-            *   `"set_temperature"`: Sets the `temperature` to a given `value`.
-            *   It returns a string describing the outcome of the action (e.g., "Light turned on.").
+1.  **`environment.py` (`Environment` class)**:
+    *   Manages the environment's state (e.g., `light_on`, `temperature`).
+    *   Provides `get_state()` and `apply_action(action, value)` methods. This remains unchanged from the previous version.
 
-2.  **`agent.py`**:
-    *   Defines the `EnvironmentControlledAgent` class.
-    *   It takes an `Environment` instance during initialization, establishing the link between the agent and its world.
-    *   It implements the core perception-action loop methods:
-        *   `perceive()`: Calls its environment's `get_state()` method to get the current environmental conditions.
-        *   `decide_action(current_state: dict)`: Contains simple rule-based logic to choose an action:
-            *   If the `light_on` state is `False`, it decides to `"toggle_light"`.
-            *   If the `temperature` is below 18, it decides to `"set_temperature"` to 22.
-            *   If the `temperature` is above 25, it decides to `"set_temperature"` to 22.
-            *   Otherwise, it decides to `"do_nothing"`.
-        *   `execute_action(action: str, value: any = None)`: If the action is not `"do_nothing"`, it calls the `apply_action` method on its `environment` instance, passing the chosen action and any necessary value. It returns the result message from the environment.
+2.  **`agent.py` (`EnvironmentControlledAgent` class - Updated)**:
+    *   Initialized with an `Environment` instance and an Ollama `llm_model` name (e.g., "mistral").
+    *   Stores a `current_goal` as a natural language string (e.g., "Keep the room well-lit and cool."). Includes a default goal.
+    *   **`set_goal(natural_language_goal: str)` method**: Allows users to update the agent's `current_goal`.
+    *   **`decide_action(current_state: dict)` method (Rewritten)**:
+        *   Constructs a detailed prompt for the configured Ollama LLM. This prompt includes:
+            *   The agent's `current_goal`.
+            *   The `current_state` of the environment (as a JSON string).
+            *   A list of `available_actions` with descriptions of their effects and expected arguments.
+        *   Instructs the LLM to choose the best action and any necessary `action_value` to progress towards the goal, and to provide an `explanation`. The LLM is asked to return this in JSON format: `{"action_name": "chosen_action", "action_value": value_if_any, "explanation": "reason_for_action"}`.
+        *   Calls `ollama.chat()` with `format='json'`.
+        *   Parses the JSON response from the LLM.
+        *   Includes validation for the `action_name` and `action_value` returned by the LLM.
+        *   Returns the `action_name`, `action_value`, and the LLM's `explanation`.
+        *   Includes error handling for LLM communication and JSON parsing, defaulting to "do_nothing".
+    *   `perceive()` and `execute_action()` methods remain largely the same.
 
-3.  **`main.py`**:
-    *   Sets up and runs a simulation of the agent interacting with the environment.
-    *   It initializes an `Environment` instance and an `EnvironmentControlledAgent` instance (passing the environment to the agent).
-    *   It then runs a loop for a fixed number of steps (e.g., 10 steps). In each step:
-        1.  The agent perceives the environment's state, and the state is printed.
-        2.  The agent decides on an action based on this state, and the intended action is printed.
-        3.  The agent executes the action, and the outcome (as reported by the environment) is printed.
-        4.  The new state of the environment after the action is printed.
-        5.  There's a brief pause (configurable) between steps to allow observation of the process.
+3.  **`main.py` (CLI - Updated)**:
+    *   The CLI simulation loop now accommodates the three return values from `decide_action` (action, value, explanation) and prints the LLM's explanation for each step.
+    *   Includes a simple mechanism to externally modify the environment state during the simulation to make it more dynamic.
 
-This implementation clearly demonstrates the agent sensing its environment, making a decision based on that sensory input, and then acting upon the environment to change its state.
+4.  **`app_ui.py` (Streamlit UI - Updated)**:
+    *   The Streamlit UI now features a text input field in the sidebar allowing users to set or update the agent's `current_goal` in natural language.
+    *   The simulation log in the UI displays the active goal for each step and the LLM's `explanation` for the action taken, providing transparency into the agent's reasoning.
+
+## Prerequisites & Setup
+
+1.  **Ollama and LLM Model**:
+    *   **Install Ollama**: Ensure Ollama is installed and running. See the [Ollama official website](https://ollama.com/).
+    *   **Pull an LLM Model**: The agent defaults to `"mistral"`. You need this model (or your chosen alternative that's good at following instructions and generating JSON) pulled in Ollama.
+      ```bash
+      ollama pull mistral
+      ```
+    *   **Install Ollama Python Client**:
+      ```bash
+      pip install ollama
+      ```
+
+2.  **Streamlit (for UI)**:
+    *   If you want to use the web UI, install Streamlit:
+      ```bash
+      pip install streamlit
+      ```
+
+*(If using Poetry for the main project, add `ollama` and `streamlit` to your `pyproject.toml` and run `poetry install`.)*
 
 ## How to Run
 
-1.  **Navigate to the project directory**:
-    Open your terminal or command prompt.
+**(Ensure you have completed all Prerequisites & Setup steps above: Ollama running, model pulled, and Python packages installed.)**
+
+### 1. Command-Line Interface (CLI)
+
+1.  **Navigate to the agent's directory**:
     ```bash
     cd path/to/your/environment_controlled_agent
     ```
@@ -65,60 +88,42 @@ This implementation clearly demonstrates the agent sensing its environment, maki
     ```bash
     python main.py
     ```
-    Or, if you have multiple Python versions, you might need to use `python3`:
+    Or using `python3`:
     ```bash
     python3 main.py
     ```
 
-4.  **Observe the Simulation**:
-    The script will run a simulation for a predefined number of steps (default is 6 steps in `main.py`, with a 1.5-second pause between steps). You will see output for each step, detailing:
-    *   The state perceived by the agent.
-    *   The action chosen by the agent.
-    *   The result of that action on the environment.
-    *   The new state of the environment.
-
-    **Example Output Snippet (Step 1 might look like this if light is initially off):**
+3.  **Observe the Simulation via CLI**:
+    The script runs a simulation. For each step, it prints the perceived state, the agent's (LLM-driven) decided action and value, the LLM's reasoning, the execution result, and the new environment state.
     ```
-    --- Environment Controlled Agent Simulation Starting ---
-    Agent: EcoBot
-    Initial Environment State: {'light_on': False, 'temperature': 20}
-    ------------------------------
-
-    --- Step 1/6 ---
+    --- Step 1/8 ---
     Agent perceives state: {'light_on': False, 'temperature': 20}
-    Agent decides to: toggle_light
-    Action result: Light turned on.
+    Agent decides to: toggle_light with value None
+    Agent's reasoning: "The light is currently off, and the goal is to maintain a well-lit environment, so turning on the light is the first priority."
+    Action execution result: Light turned on.
     New environment state: {'light_on': True, 'temperature': 20}
-    (Pausing for 1.5s...)
+    (Pausing for 2s...)
     ```
-    The simulation will continue, showing the agent reacting to the changing temperature (if it goes out of the 18-25 range) or doing nothing if conditions are optimal according to its rules.
+    *(Exact LLM explanations and decisions might vary.)*
 
 ### Web UI (Streamlit)
 
-The Environment-Controlled Agent also comes with an interactive web interface built with Streamlit, allowing you to step through the simulation and observe the agent's behavior.
+The LLM-powered Environment-Controlled Agent's decision process is best observed via its Streamlit UI.
 
-1.  **Install Streamlit**:
-    If you haven't installed it yet, you'll need Streamlit. If your main project uses Poetry, consider adding Streamlit as a dependency there. For a standard local installation:
-    ```bash
-    pip install streamlit
-    ```
+1.  **Ensure Dependencies are Installed**:
+    Make sure `streamlit` and `ollama` are installed (see Prerequisites).
 
 2.  **Run the Streamlit App**:
-    To launch the web UI, open your terminal, navigate to the root directory of this repository (where the main `README.md` is located), and execute the command:
+    Navigate to the root directory of this repository and execute:
     ```bash
     streamlit run environment_controlled_agent/app_ui.py
     ```
-    This will typically open the application in your default web browser.
+    This will open the UI in your web browser.
 
 3.  **Interact with the Simulation via Web**:
-    *   The web interface will display the title of the simulation.
-    *   On one side (left column), you'll see the current "Environment State" displayed as a JSON object. Below this, there are buttons:
-        *   **"Run Next Step"**: Click this to advance the simulation by one step. The agent will perceive, decide, and act.
-        *   **"Reset Simulation"**: Click this to reset the environment and the agent to their initial states and clear the log.
-    *   On the other side (right column), you'll see the "Simulation Log". Each entry in the log (newest first) corresponds to a step and can be expanded to show:
-        *   The state perceived by the agent.
-        *   The action (and value, if any) decided by the agent.
-        *   The result of the action's execution on the environment.
-        *   The new state of the environment after the action.
-    *   A sidebar explains the agent's goals and the environment's parameters.
-    *   Step through the simulation to observe how the agent reacts to different environmental conditions.
+    *   The UI displays the current environment state.
+    *   In the sidebar, you can view and **update the agent's current goal** using natural language (e.g., "Make the room dark and warm, around 28 degrees Celsius", "Prioritize energy saving: turn off light if not needed and keep temperature moderate at 20 degrees").
+    *   Click "Run Next Step" to advance the simulation.
+    *   The "Simulation Log" shows each step's details: the goal active during that step, perceived state, decided action and value, the **LLM's reasoning** for the action, the execution result, and the new environment state.
+    *   Use the "Reset Simulation" button to start over with the default goal.
+```

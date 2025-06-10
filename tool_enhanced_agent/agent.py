@@ -1,22 +1,34 @@
 # agent.py
-import re
+import ollama
+import json
+import re # Can still be useful for simple fallbacks or specific parsing if LLM fails
 from tools import get_current_datetime, calculate_sum, get_weather
 
 class ToolEnhancedAgent:
-    def __init__(self):
-        self.name = "ToolBot Alpha"
+    def __init__(self, llm_model="mistral"):
+        self.name = "ToolBot Pro (LLM-NLU)"
+        self.llm_model = llm_model
+        self.tools_description = {
+            "get_current_datetime": "Gets the current date and time. No arguments needed.",
+            "calculate_sum": "Calculates the sum of two numbers. Expects two numerical arguments named 'a' and 'b'.",
+            "get_weather": "Gets the dummy weather forecast for a given city. Expects one string argument named 'city'.",
+            "unknown": "Use this if no other tool seems appropriate for the user's request."
+        }
+        self.callable_tools = {
+            "get_current_datetime": get_current_datetime,
+            "calculate_sum": calculate_sum,
+            "get_weather": get_weather
+        }
 
     def process_request(self, user_input: str) -> dict:
         """
-        Processes the user's request by parsing it, deciding which tool to use (if any),
-        executing the tool, and formulating a response.
+        Processes the user's request using an LLM to select a tool and extract arguments,
+        then executes the tool and formulates a response.
         Returns a dictionary with details of the processing.
         """
-        user_input_lower = user_input.lower()
-        # thought_process = [f"Received input: '{user_input}'"] # Internal thought process, not directly returned for now
-
-        response_dict = {
+        response_payload = {
             "user_input": user_input,
+            "llm_interpretation": None,
             "tool_used": None,
             "tool_input_params": None,
             "tool_output_raw": None,
@@ -24,58 +36,98 @@ class ToolEnhancedAgent:
             "error": None
         }
 
-        # 1. Check for "time" or "date" -> get_current_datetime
-        if "time" in user_input_lower or "date" in user_input_lower or "datetime" in user_input_lower:
-            response_dict["tool_used"] = "get_current_datetime"
-            raw_output = get_current_datetime()
-            response_dict["tool_output_raw"] = raw_output
-            response_dict["final_response"] = f"The current date and time is: {raw_output}"
-            return response_dict
+        tools_prompt_info = "\n".join([f"- '{name}': {desc}" for name, desc in self.tools_description.items()])
 
-        # 2. Check for "sum" or "add" (with numbers) -> calculate_sum
-        sum_match = re.search(r"(?:sum|add|calculate|plus)\s(?:of\s)?(-?\d+(?:\.\d+)?)\s(?:and|plus|\+)\s(-?\d+(?:\.\d+)?)", user_input_lower)
-        if sum_match:
-            num1_str, num2_str = sum_match.groups()
-            response_dict["tool_used"] = "calculate_sum"
-            response_dict["tool_input_params"] = {"a": num1_str, "b": num2_str}
-            try:
-                num1 = float(num1_str)
-                num2 = float(num2_str)
-                raw_output = calculate_sum(num1, num2) # This tool already returns a formatted string
-                response_dict["tool_output_raw"] = raw_output # Storing the already formatted string
-                response_dict["final_response"] = raw_output # Using it directly
-                if "Error:" in raw_output: # Check if the tool itself reported an error
-                    response_dict["error"] = raw_output
-            except ValueError:
-                response_dict["error"] = "Invalid number format for sum calculation."
-                response_dict["final_response"] = "I found numbers, but couldn't understand them properly for calculation. Please use valid numbers."
-            return response_dict
+        prompt_to_llm = f"""Given the user input: "{user_input}"
+Analyze the input and determine which of the following tools is most appropriate to use.
+Available tools:
+{tools_prompt_info}
 
-        # 3. Check for "weather" (with a city name) -> get_weather
-        weather_match = re.search(r"weather\s(?:in|for)\s([a-zA-Z\s]+)(?:\?|$)", user_input_lower)
-        if not weather_match:
-             weather_match = re.search(r"what's\s(?:the\s)?weather\s(?:in|for)\s([a-zA-Z\s]+)(?:\?|$)", user_input_lower)
+If a tool requires arguments, extract them from the user input.
+Respond in JSON format with "tool_name" and "arguments" (as a dictionary, or an empty dictionary if no arguments are needed).
+If the 'calculate_sum' tool is chosen, the arguments dictionary should be like {{"a": number1, "b": number2}}.
+If the 'get_weather' tool is chosen, the arguments dictionary should be like {{"city": "city_name"}}.
+If 'get_current_datetime' is chosen, arguments should be {{}}.
+If no tool is suitable, use "unknown" as the tool_name.
 
-        if weather_match:
-            city_name = weather_match.group(1).strip()
-            response_dict["tool_used"] = "get_weather"
-            if city_name:
-                response_dict["tool_input_params"] = {"city": city_name}
-                raw_output = get_weather(city_name) # This tool already returns a formatted string
-                response_dict["tool_output_raw"] = raw_output
-                response_dict["final_response"] = raw_output
-                if "Error:" in raw_output:
-                    response_dict["error"] = raw_output
+Example for 'What is 10 plus 5?': {{"tool_name": "calculate_sum", "arguments": {{"a": 10, "b": 5}}}}
+Example for 'current time': {{"tool_name": "get_current_datetime", "arguments": {{}}}}
+Example for 'weather in Berlin': {{"tool_name": "get_weather", "arguments": {{"city": "Berlin"}}}}
+Example for 'hello how are you': {{"tool_name": "unknown", "arguments": {{}}}}
+
+Only provide the JSON response.
+"""
+
+        try:
+            ollama_response = ollama.chat(
+                model=self.llm_model,
+                messages=[{'role': 'user', 'content': prompt_to_llm}],
+                format='json'
+            )
+            llm_output_str = ollama_response['message']['content']
+            # print(f"LLM Raw Output: {llm_output_str}") # For debugging
+            llm_output_json = json.loads(llm_output_str)
+            response_payload["llm_interpretation"] = llm_output_json
+
+            tool_name = llm_output_json.get("tool_name")
+            arguments = llm_output_json.get("arguments", {}) # Default to empty dict
+
+            response_payload["tool_used"] = tool_name
+            response_payload["tool_input_params"] = arguments if arguments else None
+
+
+            if tool_name in self.callable_tools:
+                tool_function = self.callable_tools[tool_name]
+                # Ensure arguments are passed correctly, especially for no-arg functions
+                if not arguments and tool_name == "get_current_datetime": # No args expected
+                    raw_output = tool_function()
+                elif arguments: # Arguments are expected and provided
+                     # For calculate_sum, ensure 'a' and 'b' are floats if they come as strings from LLM
+                    if tool_name == "calculate_sum":
+                        try:
+                            args_for_sum = {k: float(v) for k, v in arguments.items()}
+                            raw_output = tool_function(**args_for_sum)
+                        except (ValueError, TypeError) as e:
+                            response_payload["error"] = f"Invalid number format for sum: {arguments}. Error: {e}"
+                            raw_output = f"Error: Could not perform sum with provided numbers {arguments}."
+                    else: # For get_weather, pass arguments as is
+                        raw_output = tool_function(**arguments)
+                else: # Tool expects args but none provided by LLM
+                    response_payload["error"] = f"Tool '{tool_name}' expects arguments, but LLM provided none or they were invalid."
+                    raw_output = f"Error: Missing arguments for tool {tool_name}."
+
+                response_payload["tool_output_raw"] = raw_output
+
+                # Formulate final response (can be same as raw_output if tool returns formatted string)
+                if "Error:" not in raw_output: # Simple check if tool itself signaled an error
+                    if tool_name == "get_current_datetime":
+                        response_payload["final_response"] = f"The current date and time is: {raw_output}."
+                    else: # For sum and weather, the tools already return formatted strings
+                        response_payload["final_response"] = raw_output
+                else:
+                    response_payload["final_response"] = raw_output # Pass tool's error message
+                    if not response_payload["error"]: # If agent didn't set an error yet
+                         response_payload["error"] = raw_output
+
+
+            elif tool_name == "unknown":
+                response_payload["final_response"] = f"I'm not sure how to help with that. I can tell time, sum numbers, or get weather. Your input: \"{user_input}\""
             else:
-                response_dict["error"] = "No city name provided with weather command."
-                response_dict["final_response"] = "I can get the weather for you, but please specify a city name, like 'weather in London'."
-            return response_dict
+                response_payload["error"] = f"LLM selected an unknown or unhandled tool: '{tool_name}'."
+                response_payload["final_response"] = "Sorry, I tried to use a tool I don't recognize."
 
-        # Default response if no tool is matched
-        response_dict["final_response"] = f"I am {self.name}. I can tell you the time, sum numbers (e.g., 'add 5 and 3'), or get the weather (e.g., 'weather in Paris'). How can I help?"
-        return response_dict
+        except json.JSONDecodeError as e:
+            response_payload["error"] = f"LLM output was not valid JSON: {e}. Raw output: {llm_output_str}"
+            response_payload["final_response"] = "Sorry, I had trouble understanding the structure of the command from my AI."
+        except Exception as e:
+            response_payload["error"] = f"Ollama LLM error: {type(e).__name__} - {e}. Is Ollama running and model '{self.llm_model}' pulled?"
+            response_payload["final_response"] = "Sorry, I'm having trouble connecting to my understanding module."
+
+        return response_payload
 
 if __name__ == '__main__':
+    # Ensure Ollama is running and the model (e.g., "mistral") is pulled.
+    # Example: ollama pull mistral
     agent = ToolEnhancedAgent()
 
     test_queries = [

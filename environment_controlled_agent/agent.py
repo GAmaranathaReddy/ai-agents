@@ -1,17 +1,29 @@
 # agent.py
 from typing import Dict, Any, Tuple, Optional
-from environment import Environment # Assuming environment.py is in the same directory
+from environment import Environment
+import ollama
+import json
 
 class EnvironmentControlledAgent:
-    def __init__(self, environment: Environment):
+    def __init__(self, environment: Environment, llm_model="mistral"):
         """
-        Initializes the agent with a reference to an environment.
-
+        Initializes the agent with a reference to an environment and an LLM model.
         Args:
             environment (Environment): An instance of the Environment class.
+            llm_model (str): The name of the Ollama model to use for decision making.
         """
         self.environment = environment
-        self.name = "EcoBot"
+        self.name = "EcoBot (LLM-Powered)"
+        self.llm_model = llm_model
+        self.current_goal = "Maintain a balanced and comfortable environment: light should ideally be on, and temperature should be between 18 and 25 degrees Celsius. Prioritize turning on the light if it's off."
+        self.last_explanation = "No decision made yet."
+
+    def set_goal(self, natural_language_goal: str) -> str:
+        """Sets a new goal for the agent in natural language."""
+        self.current_goal = natural_language_goal
+        confirmation_message = f"New goal set: {self.current_goal}"
+        self.last_explanation = confirmation_message # Update last explanation to reflect goal change
+        return confirmation_message
 
     def perceive(self) -> Dict[str, Any]:
         """
@@ -24,29 +36,87 @@ class EnvironmentControlledAgent:
 
     def decide_action(self, current_state: Dict[str, Any]) -> Tuple[str, Optional[Any]]:
         """
-        Decides an action based on the current environment state.
+        Decides an action based on the current environment state and its current goal using an LLM.
 
         Args:
             current_state (Dict[str, Any]): The current state of the environment.
 
         Returns:
-            Tuple[str, Optional[Any]]: A tuple containing the action string
-                                       and an optional value for that action.
-                                       Example: ("toggle_light", None) or ("set_temperature", 22).
+            Tuple[str, Optional[Any], str]: A tuple containing the action string,
+                                            an optional value for that action,
+                                            and an explanation for the decision.
         """
-        light_on = current_state.get("light_on")
-        temperature = current_state.get("temperature")
+        available_actions_desc = {
+            "toggle_light": "Toggles the current light status (on/off). No value needed.",
+            "set_temperature": "Sets the temperature to a specific VALUE. Expects a numerical value.",
+            "do_nothing": "Take no action if the goal is met or no useful action can be taken."
+        }
+        actions_prompt_info = "\n".join([f"- '{name}': {desc}" for name, desc in available_actions_desc.items()])
 
-        if light_on == False: # Explicitly check for False, as None could be an issue
-            return "toggle_light", None
+        prompt_to_llm = f"""Current Goal: "{self.current_goal}"
 
-        if temperature is not None: # Ensure temperature is not None before comparing
-            if temperature < 18:
-                return "set_temperature", 22
-            elif temperature > 25:
-                return "set_temperature", 22
+Current Environment State:
+{json.dumps(current_state)}
 
-        return "do_nothing", None # Default action if no other conditions are met
+Available Actions:
+{actions_prompt_info}
+
+Based on the current goal and environment state, choose the single best action to take next to progress towards the goal.
+Provide your response as a JSON object with three keys:
+1. "action_name": The name of the chosen action (must be one of: {', '.join(available_actions_desc.keys())}).
+2. "action_value": The value for the action, if applicable (e.g., the temperature for 'set_temperature'). If no value is needed, set this to null.
+3. "explanation": A brief explanation of why you chose this action in relation to the goal and state.
+
+Example for setting temperature: {{"action_name": "set_temperature", "action_value": 22, "explanation": "Temperature is too low for comfort."}}
+Example for toggling light: {{"action_name": "toggle_light", "action_value": null, "explanation": "Light is currently off and goal implies it should be on."}}
+Example for no action: {{"action_name": "do_nothing", "action_value": null, "explanation": "The environment is currently optimal according to the goal."}}
+
+Only provide the JSON response.
+"""
+        try:
+            # print(f"[DEBUG AGENT] Prompt to LLM:\n{prompt_to_llm}") # For debugging
+            response = ollama.chat(
+                model=self.llm_model,
+                messages=[{'role': 'user', 'content': prompt_to_llm}],
+                format='json'
+            )
+            llm_output_str = response['message']['content']
+            # print(f"[DEBUG AGENT] Raw LLM Output: {llm_output_str}") # For debugging
+            llm_output = json.loads(llm_output_str)
+
+            action_name = llm_output.get("action_name", "do_nothing")
+            action_value = llm_output.get("action_value") # Can be None/null
+            explanation = llm_output.get("explanation", "No explanation provided by LLM.")
+
+            self.last_explanation = explanation # Store for UI or logging
+
+            # Validate action_name
+            if action_name not in available_actions_desc:
+                self.last_explanation = f"LLM chose an invalid action ('{action_name}'). Defaulting to 'do_nothing'."
+                action_name = "do_nothing"
+                action_value = None
+
+            # Ensure action_value is None if not applicable (e.g. for toggle_light, do_nothing)
+            if action_name in ["toggle_light", "do_nothing"]:
+                action_value = None
+            elif action_name == "set_temperature":
+                if not isinstance(action_value, (int, float)):
+                    self.last_explanation = f"LLM provided invalid value '{action_value}' for set_temperature. Defaulting to 'do_nothing'."
+                    action_name = "do_nothing"
+                    action_value = None
+
+            return action_name, action_value, self.last_explanation
+
+        except json.JSONDecodeError as e:
+            error_msg = f"LLM output was not valid JSON: {e}. Raw output: {llm_output_str}"
+            print(f"[ERROR AGENT] {error_msg}")
+            self.last_explanation = error_msg
+            return "do_nothing", None, self.last_explanation
+        except Exception as e:
+            error_msg = f"Ollama LLM error: {type(e).__name__} - {e}."
+            print(f"[ERROR AGENT] {error_msg}")
+            self.last_explanation = error_msg
+            return "do_nothing", None, self.last_explanation
 
     def execute_action(self, action: str, value: Optional[Any] = None) -> str:
         """

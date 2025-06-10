@@ -1,66 +1,76 @@
 # Memory-Enhanced Agent
 
-## Memory-Enhanced Agent Pattern
+## Memory-Enhanced Agent (LLM-Powered)
 
-A Memory-Enhanced Agent is an agent that maintains and utilizes a memory of past interactions, learned facts, or contextual information to inform its current and future behavior. This allows the agent to provide more personalized, coherent, and context-aware responses over time.
+A Memory-Enhanced Agent maintains and utilizes a memory of past interactions and learned facts to inform its current and future behavior. This version is **LLM-powered**, using Ollama to:
+1.  Understand user input in a conversational context.
+2.  Extract new facts explicitly stated by the user.
+3.  Generate responses that are aware of both learned facts and recent conversation history.
 
-The core components of this pattern include:
-
-1.  **Memory Store**: A mechanism for storing information. This can be short-term (e.g., current conversation context) or long-term (e.g., user preferences, facts learned across multiple sessions).
-    *   **Fact Memory**: Stores specific pieces of information (e.g., "user's name is Alice," "user's favorite color is blue").
-    *   **Conversation History**: Keeps a log of the dialogue turns between the user and the agent.
-
-2.  **Memory Operations**:
-    *   **Writing/Encoding**: Processes new information from interactions and stores it appropriately in the memory. This might involve parsing input to extract relevant facts.
-    *   **Reading/Retrieval**: Accesses stored information to make decisions or formulate responses. This could involve querying for specific facts or reviewing recent conversation history.
-
-3.  **Agent Logic**: The agent's core processing is modified to interact with its memory.
-    *   Before responding, it might retrieve relevant information.
-    *   It might explicitly acknowledge learned information.
-    *   It logs interactions to build up its history.
-
-This pattern enables agents to move beyond stateless, purely reactive responses and engage in more meaningful, continuous dialogues.
+The core components are:
+*   **Memory Store (`memory.py`)**: Stores key-value facts and a chronological log of user-agent interactions.
+*   **LLM-Driven Agent Logic (`agent.py`)**: Orchestrates interaction with the user and the memory, using an LLM for NLU, fact extraction, and response generation.
 
 ## Implementation
 
-This project demonstrates a simplified Memory-Enhanced Agent:
+This project demonstrates the LLM-powered Memory-Enhanced Agent:
 
-1.  **`memory.py`**:
-    *   Defines a `Memory` class.
-    *   Internally, it uses:
-        *   A dictionary (`_facts`) to store key-value pieces of information (e.g., `{"name": "Alice"}`).
-        *   A list (`_conversation_history`) to store tuples of (user_input, agent_response).
-    *   Provides methods:
-        *   `add_fact(key, value)`: To store or update a fact (keys are stored case-insensitively).
-        *   `get_fact(key)`: To retrieve a fact.
-        *   `log_interaction(user_input, agent_response)`: To add a turn to the history.
-        *   `get_conversation_history()`: To retrieve the full dialogue log.
-        *   `get_all_facts()`: To retrieve all learned facts.
-        *   `clear_facts()`, `clear_history()`: For managing memory content.
+1.  **`memory.py` (`Memory` class)**:
+    *   Remains largely the same, providing methods to `add_fact` (which updates if key exists), `get_fact`, `get_all_facts`, `log_interaction`, and `get_conversation_history`.
 
-2.  **`agent.py`**:
-    *   Defines the `MemoryEnhancedAgent` class, which contains an instance of the `Memory` class.
-    *   Its `chat(user_input: str)` method is the core of its processing:
-        *   **Fact Extraction**: The private `_extract_facts(user_input)` method uses simple regular expressions to identify and extract potential facts from the user's input (e.g., "My name is John" -> `{"name": "John"}`; "I like blue" -> `{"favorite_color": "blue"}`; "I live in Paris" -> `{"location": "Paris"}`).
-        *   **Memory Update**: If new or updated facts are extracted, they are added to the agent's `memory` instance.
-        *   **Contextual Response Generation**: The private `_generate_response(user_input, extracted_facts)` method formulates the agent's reply.
-            *   It checks if the user is asking a direct question about a stored fact (e.g., "What is my name?"). If so, it retrieves the fact from memory and uses it in the answer.
-            *   It acknowledges newly learned information (e.g., "Nice to meet you, John!").
-            *   It uses stored facts, like the user's name, to personalize greetings if available.
-        *   **History Logging**: After generating a response, the `user_input` and `agent_response` are logged to the `memory`'s conversation history.
+2.  **`agent.py` (`MemoryEnhancedAgent` class - Updated)**:
+    *   Initialized with an Ollama model name (e.g., "mistral").
+    *   The old regex-based `_extract_facts` and rule-based `_generate_response` methods are removed.
+    *   The main `chat(user_input: str)` method is rewritten:
+        *   It retrieves all known facts and the last N turns of conversation history from the `Memory` instance.
+        *   It constructs a detailed prompt for the configured Ollama LLM. This prompt includes:
+            *   The current `user_input`.
+            *   The `known_facts` (as a JSON string).
+            *   The `recent_conversation_history` (formatted as dialogue).
+            *   Instructions for the LLM to:
+                1.  Generate a natural, conversational `response` to the user, using known facts and history for context.
+                2.  Identify any `new_facts_to_store` (as a dictionary) explicitly stated by the user in their *current* message.
+                3.  Return this output as a single JSON object: `{"response": "...", "new_facts_to_store": {"key": "value", ...}}`.
+        *   It calls `ollama.chat()` with `format='json'` to get the structured response.
+        *   It parses the JSON to extract the `agent_reply` and any `new_facts`.
+        *   If `new_facts` are present and valid, they are added to the agent's memory using `self.memory.add_fact()`.
+        *   It includes error handling for LLM communication and JSON parsing.
+        *   The `user_input` and the final `agent_reply` are logged to the conversation history in memory.
 
-3.  **`main.py`**:
-    *   Provides a simple command-line interface (CLI) for a conversational interaction.
-    *   Users can chat with the agent over multiple turns.
-    *   A special command `showmemory` allows the user to inspect the current state of the agent's facts and conversation history during the session.
-    *   The agent demonstrates its ability to recall and use information (like the user's name or favorite color) from previous turns in the ongoing conversation.
+3.  **`main.py` (CLI)** and **`app_ui.py` (Streamlit UI)**:
+    *   These interfaces interact with the LLM-enhanced agent.
+    *   The Streamlit UI (`app_ui.py`) allows users to chat with the agent and inspect its learned facts and internal conversation log, now reflecting the LLM's influence on memory and responses.
 
-This setup illustrates how an agent can learn from interactions, store that learning, and then use it to provide more relevant and personalized responses in subsequent turns.
+This architecture allows the agent to have more natural conversations, learn facts more flexibly from user statements, and use its memory more intelligently, all mediated by the LLM.
+
+## Prerequisites & Setup
+
+1.  **Ollama and LLM Model**:
+    *   **Install Ollama**: Ensure Ollama is installed and running. See the [Ollama official website](https://ollama.com/).
+    *   **Pull an LLM Model**: The agent defaults to `"mistral"`. You need this model (or your chosen alternative that's good at conversational tasks and following JSON format instructions) pulled in Ollama.
+      ```bash
+      ollama pull mistral
+      ```
+    *   **Install Ollama Python Client**:
+      ```bash
+      pip install ollama
+      ```
+
+2.  **Streamlit (for UI)**:
+    *   If you want to use the web UI, install Streamlit:
+      ```bash
+      pip install streamlit
+      ```
+
+*(If using Poetry for the main project, add `ollama` and `streamlit` to your `pyproject.toml` and run `poetry install`.)*
 
 ## How to Run
 
-1.  **Navigate to the project directory**:
-    Open your terminal or command prompt.
+**(Ensure you have completed all Prerequisites & Setup steps above: Ollama running, model pulled, and Python packages installed.)**
+
+### 1. Command-Line Interface (CLI)
+
+1.  **Navigate to the agent's directory**:
     ```bash
     cd path/to/your/memory_enhanced_agent
     ```
@@ -72,84 +82,54 @@ This setup illustrates how an agent can learn from interactions, store that lear
     ```bash
     python main.py
     ```
-    Or, if you have multiple Python versions, you might need to use `python3`:
+    Or using `python3`:
     ```bash
     python3 main.py
     ```
 
-4.  **Interact with the Agent**:
-    The CLI will start. You can then chat with the agent.
-
-    **Example Conversation**:
+3.  **Interact with the Agent via CLI**:
+    The CLI will start. Chat with the agent naturally.
     ```
-    Memory-Enhanced Agent CLI - Chat with RecallBot
+    Memory-Enhanced Agent CLI - Chat with RecallBot (LLM-Powered)
     The agent can remember your name, favorite color, and other details you share.
     Try saying: 'My name is [Your Name]', 'I like [color]', 'My favorite food is [food]'.
     Then ask: 'What is my name?', 'What is my favorite color?'.
     Type 'exit', 'quit', or 'bye' to end the chat.
     Type 'showmemory' to see what the agent remembers (facts and history).
     ------------------------------
-    You: Hello there
-    Agent: Hello! How can I help you today?
-    You: My name is Alice.
-    Agent: Nice to meet you, Alice! How can I help you today?
-    You: I like the color red
-    Agent: Noted, Alice! Your favorite color is red.
-    You: I live in Wonderland
-    Agent: Okay, Alice, I'll remember you live in Wonderland.
-    You: What is my name?
-    Agent: Alice, your name is Alice.
-    You: What is my favorite color?
-    Agent: Alice, your favorite color is red.
-    You: Where do I live?
-    Agent: Alice, you live in Wonderland.
+    You: Hi, I'm Bob and I love the color green.
+    Agent: Hi Bob! It's great to meet you. Green is a lovely color! I'll remember that. How can I help you today?
+    You: What's my favorite color?
+    Agent: Bob, if I remember correctly, your favorite color is green! Is there anything else I can help you with?
     You: showmemory
 
     --- Agent's Current Memory ---
-    Facts: {'name': 'Alice', 'favorite_color': 'red', 'location': 'Wonderland'}
+    Facts: {'name': 'Bob', 'favorite_color': 'green'}
     History:
-      user: Hello there
-      agent: Hello! How can I help you today?
-      user: My name is Alice.
-      agent: Nice to meet you, Alice! How can I help you today?
-      user: I like the color red
-      agent: Noted, Alice! Your favorite color is red.
-      user: I live in Wonderland
-      agent: Okay, Alice, I'll remember you live in Wonderland.
-      user: What is my name?
-      agent: Alice, your name is Alice.
-      user: What is my favorite color?
-      agent: Alice, your favorite color is red.
-      user: Where do I live?
-      agent: Alice, you live in Wonderland.
+      user: Hi, I'm Bob and I love the color green.
+      agent: Hi Bob! It's great to meet you. Green is a lovely color! I'll remember that. How can I help you today?
+      user: What's my favorite color?
+      agent: Bob, if I remember correctly, your favorite color is green! Is there anything else I can help you with?
     ------------------------------
-
-    You: exit
-    Agent: Goodbye, Alice!
     ```
+    *(Exact LLM responses and extracted facts will vary based on the model and its interpretation.)*
 
 ### Web UI (Streamlit)
 
-The Memory-Enhanced Agent also features an interactive chat interface built with Streamlit. This UI allows you to converse with the agent and inspect its memory.
+The Memory-Enhanced Agent's LLM-powered capabilities can be explored through its Streamlit UI.
 
-1.  **Install Streamlit**:
-    If you haven't already, you'll need to install Streamlit. If your main project uses Poetry, consider adding Streamlit as a dependency there. For a standard local installation:
-    ```bash
-    pip install streamlit
-    ```
+1.  **Ensure Dependencies are Installed**:
+    Make sure `streamlit` and `ollama` are installed (see Prerequisites).
 
 2.  **Run the Streamlit App**:
-    To launch the web UI, open your terminal, navigate to the root directory of this repository (where the main `README.md` is), and execute the command:
+    Navigate to the root directory of this repository and execute:
     ```bash
     streamlit run memory_enhanced_agent/app_ui.py
     ```
-    This will typically open the application in your default web browser.
+    This will open the UI in your web browser.
 
 3.  **Interact with the Agent via Web**:
-    *   The main part of the page is a chat interface. Enter your messages in the input box at the bottom.
-    *   The conversation will be displayed above the input box.
-    *   The sidebar provides options to view the agent's memory:
-        *   **"Learned Facts"**: Shows key-value pairs the agent has learned (e.g., your name, favorite color).
-        *   **"Agent's Internal Conversation Log"**: Displays the history of interactions as recorded by the agent itself.
-        *   A "Refresh Memory View" button in the sidebar can be used to update these views after new interactions.
-    *   Try having a conversation where you tell the agent your name or preferences, and then ask it about them later to see its memory in action.
+    *   Use the chat interface to converse with the agent.
+    *   The sidebar allows you to inspect "Learned Facts" (extracted by the LLM) and the "Agent's Internal Conversation Log".
+    *   Observe how the agent uses context from your conversation and previously learned facts in its responses, and how it identifies new facts.
+```

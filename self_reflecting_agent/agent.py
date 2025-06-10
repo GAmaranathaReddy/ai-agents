@@ -1,11 +1,13 @@
 # agent.py
-from task_performer import generate_initial_output, refine_output
-from critique_mechanism import critique_output
+from task_performer import generate_initial_output, refine_output # These are now LLM-driven
+from critique_mechanism import critique_output # This is now LLM-driven
+# import ollama # Not directly used in agent.py, but by its components
 
 class SelfReflectingAgent:
-    def __init__(self):
-        self.name = "ReflectorBot"
+    def __init__(self, llm_model="mistral"): # Allow model selection for all components
+        self.name = "ReflectorBot (LLM-Powered)"
         self.max_refinement_cycles = 1 # Control how many times it tries to refine
+        self.llm_model = llm_model
 
     def process_request(self, user_prompt: str) -> dict:
         """
@@ -24,42 +26,50 @@ class SelfReflectingAgent:
         }
 
         # 1. Generate initial output
-        current_output = generate_initial_output(user_prompt)
+        results["log"].append(f"Task: Generating initial output for prompt: \"{user_prompt}\" using LLM: {self.llm_model}")
+        current_output = generate_initial_output(user_prompt, llm_model=self.llm_model)
         results["initial_output"] = current_output
-        results["log"].append(f"Generated initial output: '{current_output}'")
+        results["log"].append(f"LLM (Initial Output) said: '{current_output[:100]}...'")
+
 
         # Self-reflection loop (limited by max_refinement_cycles)
         for i in range(self.max_refinement_cycles):
-            results["log"].append(f"Reflection cycle {i+1}...")
+            results["log"].append(f"Reflection cycle {i+1}/{self.max_refinement_cycles}...")
 
             # 2. Critique the current output
-            critique = critique_output(current_output, user_prompt)
+            results["log"].append(f"Task: Critiquing output: \"{current_output[:100]}...\" using LLM: {self.llm_model}")
+            critique = critique_output(current_output, user_prompt, llm_model=self.llm_model)
             results["critique"] = critique # Store the last critique
-            results["log"].append(f"Critique received: '{critique}'")
+            results["log"].append(f"LLM (Critique) said: '{critique[:100]}...'")
 
             # 3. Refine if there's a meaningful critique
-            if critique != "No critique.":
-                refined_version = refine_output(current_output, critique, user_prompt)
-                results["log"].append(f"Refined output based on critique: '{refined_version}'")
+            if critique.strip().lower() != "no critique.":
+                results["log"].append(f"Task: Refining output based on critique using LLM: {self.llm_model}")
+                refined_version = refine_output(current_output, critique, user_prompt, llm_model=self.llm_model)
+                results["log"].append(f"LLM (Refined Output) said: '{refined_version[:100]}...'")
 
                 # Check if refinement actually changed something to avoid infinite loops on poor refinement logic
                 if refined_version == current_output:
-                    results["log"].append("Refinement did not change the output. Stopping reflection.")
+                    results["log"].append("Refinement did not significantly change the output. Stopping reflection.")
                     results["refined_output"] = refined_version # Store it anyway
-                    current_output = refined_version
+                    current_output = refined_version # Though it's same, for consistency
                     break
 
                 current_output = refined_version
                 results["refined_output"] = current_output # Update refined output
             else:
-                results["log"].append("No critique received or critique was 'No critique.'. Stopping reflection.")
+                results["log"].append("No meaningful critique received. Stopping reflection.")
+                results["refined_output"] = current_output # Final output is the same as current if no refinement done
                 break # No critique, so no need to refine further
 
         results["final_output"] = current_output
         return results
 
 if __name__ == '__main__':
-    agent = SelfReflectingAgent()
+    # Ensure Ollama is running and the model (e.g., "mistral") is pulled.
+    # Example: ollama pull mistral
+    agent = SelfReflectingAgent() # Uses default "mistral"
+    # agent = SelfReflectingAgent(llm_model="nous-hermes2") # Example with another model
 
     test_prompts = [
         "write a story about a cat",

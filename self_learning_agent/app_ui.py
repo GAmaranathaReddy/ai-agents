@@ -110,6 +110,18 @@ def main():
         st.bar_chart(st.session_state.rps_agent.move_counts)
         st.write(st.session_state.rps_agent.move_counts)
 
+    # LLM Analysis Button
+    st.markdown("---")
+    if st.button("🕵️ Get LLM Analysis of Your Play Style"):
+        with st.spinner("LLM is analyzing your moves..."):
+            analysis_text = st.session_state.rps_agent.get_llm_analysis_of_opponent()
+        st.subheader("🔍 LLM Analysis of Your Play Style")
+        if "LLM analysis error" in analysis_text or "Not enough game history" in analysis_text :
+            st.warning(analysis_text)
+        else:
+            st.info(analysis_text)
+
+
     # Reset game button
     st.sidebar.header("Game Controls")
     if st.sidebar.button("Reset Game and Agent Memory"):
@@ -118,9 +130,8 @@ def main():
 
     st.sidebar.header("About")
     st.sidebar.info(
-        "This agent learns your Rock-Paper-Scissors move patterns over time. "
-        "Initially, it plays randomly. After observing a few of your moves, "
-        "it tries to predict your next move based on frequency and play the counter move."
+        f"This is '{st.session_state.rps_agent.name}'. It learns your Rock-Paper-Scissors move patterns over time "
+        "to try and predict your next move. It can also use an LLM to provide an analysis of your play style."
     )
 
 if __name__ == "__main__":

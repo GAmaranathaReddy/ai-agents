@@ -1,21 +1,24 @@
 # agent.py
 import random
 from typing import List, Dict, Tuple
+import ollama
 
 class SelfLearningAgent_RPS:
-    def __init__(self, random_choice_threshold: int = 3):
+    def __init__(self, random_choice_threshold: int = 3, llm_model: str = "mistral"):
         """
         Initializes the Self-Learning Rock-Paper-Scissors Agent.
 
         Args:
             random_choice_threshold (int): Number of opponent moves to observe
-                                           before trying to predict.
+                                           before trying to predict based on frequency.
+            llm_model (str): The Ollama model to use for play style analysis.
         """
         self.opponent_move_history: List[str] = []
         self.move_counts: Dict[str, int] = {"rock": 0, "paper": 0, "scissors": 0}
         self.possible_moves: List[str] = ["rock", "paper", "scissors"]
         self.random_choice_threshold: int = random_choice_threshold
-        self.name: str = "LearnerBot-RPS"
+        self.name: str = "LearnerBot-RPS (with LLM Analyst)"
+        self.llm_model = llm_model
 
     def choose_action(self) -> str:
         """
@@ -82,35 +85,67 @@ class SelfLearningAgent_RPS:
         self.move_counts = {"rock": 0, "paper": 0, "scissors": 0}
         # print("[Agent DEBUG] Memory reset.")
 
+    def get_llm_analysis_of_opponent(self, min_history_for_analysis: int = 7) -> str:
+        """
+        Uses an LLM to provide an analysis of the opponent's play style based on history.
+        """
+        if len(self.opponent_move_history) < min_history_for_analysis:
+            return f"Not enough game history for a meaningful analysis. Need at least {min_history_for_analysis} moves. Current moves: {len(self.opponent_move_history)}."
+
+        history_string = ", ".join(self.opponent_move_history)
+
+        prompt_to_llm = (
+            "You are a game strategy analyst. Based on the following sequence of moves made by an "
+            "opponent in Rock-Paper-Scissors, can you describe any observable patterns, tendencies, "
+            "or simple strategies they might be using? Keep your analysis concise (2-3 sentences). "
+            f"Opponent's moves: {history_string}"
+        )
+
+        try:
+            response = ollama.chat(
+                model=self.llm_model,
+                messages=[{'role': 'user', 'content': prompt_to_llm}]
+            )
+            analysis = response['message']['content']
+            return analysis
+        except Exception as e:
+            # print(f"[ERROR agent.get_llm_analysis] Ollama error: {e}")
+            return f"LLM analysis error: {type(e).__name__}. Is Ollama running and model '{self.llm_model}' pulled?"
+
 
 if __name__ == '__main__':
     print("Testing SelfLearningAgent_RPS...")
-    agent = SelfLearningAgent_RPS(random_choice_threshold=2)
+    agent = SelfLearningAgent_RPS(random_choice_threshold=2, llm_model="mistral") # Specify model for test
 
     print(f"Initial choice (random): {agent.choose_action()}")
 
     agent.learn("rock")
     print(f"Learned 'rock'. History: {agent.opponent_move_history}, Counts: {agent.move_counts}")
-    print(f"Choice after 1 'rock' (random): {agent.choose_action()}") # Still random
+    print(f"Choice after 1 'rock' (random): {agent.choose_action()}")
 
     agent.learn("rock")
     print(f"Learned 'rock' again. History: {agent.opponent_move_history}, Counts: {agent.move_counts}")
-    # Now history length is 2, so it should predict based on 'rock' (most frequent)
-    # Predicts opponent plays 'rock', agent should play 'paper'
-    print(f"Choice after 2 'rock' (should be 'paper'): {agent.choose_action()}")
+    print(f"Choice after 2 'rock' (should be 'paper' due to freq prediction): {agent.choose_action()}")
 
     agent.learn("paper")
     print(f"Learned 'paper'. History: {agent.opponent_move_history}, Counts: {agent.move_counts}")
-    # Opponent moves: rock (2), paper (1). Predicts 'rock', agent plays 'paper'.
-    print(f"Choice (should be 'paper'): {agent.choose_action()}")
+    print(f"Choice (opponent played rock twice, paper once; agent predicts rock, plays paper): {agent.choose_action()}")
+
+    # Test LLM Analysis part
+    print("\n--- Testing LLM Analysis ---")
+    print("1. Analysis with insufficient history:")
+    print(agent.get_llm_analysis_of_opponent(min_history_for_analysis=5)) # Current history is 3
 
     agent.learn("scissors")
-    agent.learn("scissors")
-    agent.learn("scissors")
-    print(f"Learned 'scissors' x3. History: {agent.opponent_move_history}, Counts: {agent.move_counts}")
-    # Opponent moves: rock (2), paper (1), scissors (3). Predicts 'scissors', agent plays 'rock'.
-    print(f"Choice (should be 'rock'): {agent.choose_action()}")
+    agent.learn("rock") # History: R, R, P, S, R (5 moves)
+    print("\n2. Analysis with sufficient history (5 moves):")
+    # This requires Ollama to be running and the model 'mistral' to be pulled.
+    # Example: ollama pull mistral
+    # The output will be from the LLM.
+    analysis_result = agent.get_llm_analysis_of_opponent(min_history_for_analysis=5)
+    print(f"LLM Analysis:\n{analysis_result}")
 
     agent.reset_memory()
-    print(f"After reset: History: {agent.opponent_move_history}, Counts: {agent.move_counts}")
+    print(f"\nAfter reset: History: {agent.opponent_move_history}, Counts: {agent.move_counts}")
     print(f"Choice after reset (random): {agent.choose_action()}")
+    print(f"LLM Analysis after reset: {agent.get_llm_analysis_of_opponent()}")
