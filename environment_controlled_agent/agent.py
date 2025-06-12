@@ -1,22 +1,24 @@
 # agent.py
 from typing import Dict, Any, Tuple, Optional
 from environment import Environment
-import ollama
+# import ollama # No longer directly importing ollama
+from common import get_llm_provider_instance # Use the abstraction layer
 import json
 
 class EnvironmentControlledAgent:
-    def __init__(self, environment: Environment, llm_model="mistral"):
+    def __init__(self, environment: Environment): # llm_model parameter removed
         """
-        Initializes the agent with a reference to an environment and an LLM model.
+        Initializes the agent with a reference to an environment.
+        LLM provider is determined by global configuration.
         Args:
             environment (Environment): An instance of the Environment class.
-            llm_model (str): The name of the Ollama model to use for decision making.
         """
         self.environment = environment
-        self.name = "EcoBot (LLM-Powered)"
-        self.llm_model = llm_model
+        self.llm_provider = get_llm_provider_instance()
+        self.name = f"EcoBot (using {type(self.llm_provider).__name__})"
+        # self.llm_model = llm_model # Removed, provider handles its own model config
         self.current_goal = "Maintain a balanced and comfortable environment: light should ideally be on, and temperature should be between 18 and 25 degrees Celsius. Prioritize turning on the light if it's off."
-        self.last_explanation = "No decision made yet."
+        self.last_explanation = "No decision made yet." # Will store explanation from LLM
 
     def set_goal(self, natural_language_goal: str) -> str:
         """Sets a new goal for the agent in natural language."""
@@ -75,13 +77,19 @@ Only provide the JSON response.
 """
         try:
             # print(f"[DEBUG AGENT] Prompt to LLM:\n{prompt_to_llm}") # For debugging
-            response = ollama.chat(
-                model=self.llm_model,
+            # response = ollama.chat( # Old call
+            #     model=self.llm_model,
+            #     messages=[{'role': 'user', 'content': prompt_to_llm}],
+            #     format='json'
+            # )
+            # llm_output_str = response['message']['content']
+            llm_output_str = self.llm_provider.chat(
                 messages=[{'role': 'user', 'content': prompt_to_llm}],
-                format='json'
+                request_json_output=True # Signal to provider to request JSON
             )
-            llm_output_str = response['message']['content']
             # print(f"[DEBUG AGENT] Raw LLM Output: {llm_output_str}") # For debugging
+            # Provider should raise error if JSON was requested but not received (for providers that support enforced JSON mode).
+            # For others, it's best effort via prompt, so json.loads might fail here.
             llm_output = json.loads(llm_output_str)
 
             action_name = llm_output.get("action_name", "do_nothing")
@@ -108,12 +116,12 @@ Only provide the JSON response.
             return action_name, action_value, self.last_explanation
 
         except json.JSONDecodeError as e:
-            error_msg = f"LLM output was not valid JSON: {e}. Raw output: {llm_output_str}"
+            error_msg = f"LLM output was not valid JSON: {e}. Raw output from provider: {llm_output_str}"
             print(f"[ERROR AGENT] {error_msg}")
             self.last_explanation = error_msg
             return "do_nothing", None, self.last_explanation
         except Exception as e:
-            error_msg = f"Ollama LLM error: {type(e).__name__} - {e}."
+            error_msg = f"LLM provider error ({type(self.llm_provider).__name__}): {type(e).__name__} - {e}."
             print(f"[ERROR AGENT] {error_msg}")
             self.last_explanation = error_msg
             return "do_nothing", None, self.last_explanation

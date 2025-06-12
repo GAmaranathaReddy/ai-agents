@@ -1,73 +1,60 @@
 # Self-Learning Agent (Rock-Paper-Scissors Example)
 
-## Self-Learning Agent (Rock-Paper-Scissors with LLM Analysis)
+## Self-Learning Agent (Rock-Paper-Scissors with LLM Analysis via Abstraction Layer)
 
-A Self-Learning Agent improves its performance or knowledge over time by learning from experiences. This Rock-Paper-Scissors (RPS) agent demonstrates two aspects:
+A Self-Learning Agent improves its performance or knowledge over time by learning from experiences. This Rock-Paper-Scissors (RPS) agent demonstrates:
 1.  **Basic Frequency-Based Learning**: It learns the opponent's (human player's) move tendencies and tries to play a counter-move.
-2.  **LLM-Powered Analysis**: It uses an Ollama LLM to provide a natural language analysis of the opponent's play style after a sufficient number of moves.
+2.  **LLM-Powered Analysis**: It uses a **centrally configured LLM provider** (via the common abstraction layer) to provide a natural language analysis of the opponent's play style.
 
-The core components:
-*   **Experience Collection**: Records the player's move history.
+Core components:
+*   **Experience Collection**: Records player's move history.
 *   **Knowledge Representation**: Stores frequency counts of player's moves (`move_counts`).
-*   **Learning Mechanism**: Updates `move_counts` after each round.
-*   **Action Strategy**: Chooses randomly initially, then uses `move_counts` to predict and counter the player's most frequent move.
-*   **LLM Analysis**: Uses an LLM to analyze the sequence of player moves and describe potential patterns.
+*   **Learning Mechanism**: Updates `move_counts`.
+*   **Action Strategy (Gameplay)**: Frequency-based prediction and counter-play.
+*   **LLM Analysis (Opponent Style)**: Uses the configured LLM provider to analyze move history.
 
 ## Implementation
 
 1.  **`agent.py` (`SelfLearningAgent_RPS` class - Updated)**:
-    *   Initialized with an Ollama `llm_model` (e.g., "mistral") for the analysis feature.
-    *   **Frequency-Based Learning**:
-        *   `opponent_move_history` (list): Stores the player's moves.
-        *   `move_counts` (dictionary): Tracks frequency of "rock", "paper", "scissors".
-        *   `learn(opponent_last_move: str)`: Updates history and counts.
-        *   `choose_action()`: Plays randomly if history is short; otherwise, predicts player's most frequent move and plays the counter.
-    *   **LLM-Powered Analysis (New)**:
+    *   No longer directly manages LLM client details or model names for analysis.
+    *   In `__init__`, it calls `get_llm_provider_instance()` from `common.llm_config` to get the globally configured LLM provider (Ollama, OpenAI, etc.), which will be used for opponent analysis.
+    *   **Frequency-Based Learning** logic (`learn`, `choose_action` based on `move_counts`) remains the same.
+    *   **LLM-Powered Analysis (Updated)**:
         *   `get_llm_analysis_of_opponent()`:
-            *   Checks if enough moves (`min_history_for_analysis`) have been played.
-            *   Formats the `opponent_move_history` into a string.
-            *   Constructs a prompt asking the Ollama LLM to act as a game strategy analyst and describe observable patterns or tendencies in the opponent's moves.
-            *   Calls `ollama.chat()` to get the analysis.
-            *   Returns the LLM's textual analysis or an error message.
-    *   `reset_memory()`: Clears history and counts.
+            *   Checks for sufficient move history.
+            *   Formats history and constructs a prompt for the LLM to analyze opponent tendencies.
+            *   Calls `self.llm_provider.chat()` to get the analysis from the configured LLM.
+            *   Returns the textual analysis or an error message.
+    *   `reset_memory()` is unchanged.
 
 2.  **`game.py`**:
-    *   `determine_winner(agent_move: str, player_move: str)`: Standard RPS win/loss/tie logic.
+    *   `determine_winner()` logic is unchanged.
 
 3.  **`main.py` (CLI)**:
-    *   Manages the RPS game loop against the agent.
-    *   Calls `agent.learn()` after each round.
-    *   Displays scores and final learned `move_counts`. (Does not currently use the LLM analysis feature).
+    *   Focuses on the frequency-based learning gameplay; does not use the LLM analysis feature.
 
 4.  **`app_ui.py` (Streamlit UI - Updated)**:
-    *   Provides an interactive web interface for playing RPS.
-    *   Displays game state, scores, and the agent's learned `move_counts` (frequency analysis).
-    *   **New Feature**: Includes a button "🕵️ Get LLM Analysis of Your Play Style". When clicked, it calls `agent.get_llm_analysis_of_opponent()` and displays the LLM's textual analysis of the player's moves.
+    *   Provides the interactive RPS game.
+    *   Displays scores and agent's learned `move_counts`.
+    *   The "🕵️ Get LLM Analysis of Your Play Style" button now triggers the `get_llm_analysis_of_opponent()` method, which uses the abstracted LLM provider.
 
 ## Prerequisites & Setup
 
-1.  **Ollama and LLM Model (for Analysis Feature)**:
-    *   **Install Ollama**: Ensure Ollama is installed and running. See [Ollama official website](https://ollama.com/).
-    *   **Pull an LLM Model**: The agent defaults to `"mistral"` for analysis.
-      ```bash
-      ollama pull mistral
-      ```
-    *   **Install Ollama Python Client**:
-      ```bash
-      pip install ollama
-      ```
+1.  **LLM Provider Configuration (for Analysis Feature)**:
+    *   This agent's analysis feature uses the centrally configured LLM provider. Ensure you have set up your desired LLM provider (Ollama, OpenAI, Gemini, or AWS Bedrock) and configured the necessary environment variables (e.g., `LLM_PROVIDER`, `OLLAMA_MODEL`, `OPENAI_API_KEY`, etc.).
+    *   **Refer to the "Multi-LLM Provider Support" section in the main project README** for detailed instructions on setting up environment variables and installing provider-specific SDKs.
 
 2.  **Streamlit (for UI)**:
-    *   Install Streamlit:
+    *   Install Streamlit (listed in this agent's `requirements.txt`):
       ```bash
       pip install streamlit
       ```
 
-*(If using Poetry for the main project, add `ollama` and `streamlit` to your `pyproject.toml` and run `poetry install`.)*
+*(If using Poetry for the main project, ensure `streamlit` and the chosen LLM provider's SDK (e.g., `ollama`, `openai`) are added to your `pyproject.toml`.)*
 
 ## How to Run
 
-**(Ensure Ollama is running and the required model is pulled if you intend to use the LLM analysis feature in the UI.)**
+**(Ensure your chosen LLM provider is configured and its service running if needed, especially if you plan to use the LLM analysis feature in the UI.)**
 
 ### 1. Command-Line Interface (CLI)
 

@@ -1,72 +1,57 @@
 # Memory-Enhanced Agent
 
-## Memory-Enhanced Agent (LLM-Powered)
+## Memory-Enhanced Agent (LLM-Powered via Abstraction Layer)
 
-A Memory-Enhanced Agent maintains and utilizes a memory of past interactions and learned facts to inform its current and future behavior. This version is **LLM-powered**, using Ollama to:
+A Memory-Enhanced Agent maintains and utilizes a memory of past interactions and learned facts to inform its current behavior. This version is **LLM-powered**, using the **common LLM provider abstraction layer** (which can be Ollama, OpenAI, Gemini, or Bedrock based on global configuration) to:
 1.  Understand user input in a conversational context.
 2.  Extract new facts explicitly stated by the user.
 3.  Generate responses that are aware of both learned facts and recent conversation history.
 
-The core components are:
+The core components:
 *   **Memory Store (`memory.py`)**: Stores key-value facts and a chronological log of user-agent interactions.
-*   **LLM-Driven Agent Logic (`agent.py`)**: Orchestrates interaction with the user and the memory, using an LLM for NLU, fact extraction, and response generation.
+*   **LLM-Driven Agent Logic (`agent.py`)**: Orchestrates interaction with the user and the memory, using the configured LLM provider for NLU, fact extraction, and response generation.
 
 ## Implementation
 
-This project demonstrates the LLM-powered Memory-Enhanced Agent:
+This project demonstrates the LLM-powered Memory-Enhanced Agent using the common LLM provider abstraction:
 
 1.  **`memory.py` (`Memory` class)**:
-    *   Remains largely the same, providing methods to `add_fact` (which updates if key exists), `get_fact`, `get_all_facts`, `log_interaction`, and `get_conversation_history`.
+    *   Provides methods to `add_fact` (updates if key exists), `get_fact`, `get_all_facts`, `log_interaction`, and `get_conversation_history`. Its functionality remains crucial.
 
 2.  **`agent.py` (`MemoryEnhancedAgent` class - Updated)**:
-    *   Initialized with an Ollama model name (e.g., "mistral").
-    *   The old regex-based `_extract_facts` and rule-based `_generate_response` methods are removed.
-    *   The main `chat(user_input: str)` method is rewritten:
-        *   It retrieves all known facts and the last N turns of conversation history from the `Memory` instance.
-        *   It constructs a detailed prompt for the configured Ollama LLM. This prompt includes:
-            *   The current `user_input`.
-            *   The `known_facts` (as a JSON string).
-            *   The `recent_conversation_history` (formatted as dialogue).
-            *   Instructions for the LLM to:
-                1.  Generate a natural, conversational `response` to the user, using known facts and history for context.
-                2.  Identify any `new_facts_to_store` (as a dictionary) explicitly stated by the user in their *current* message.
-                3.  Return this output as a single JSON object: `{"response": "...", "new_facts_to_store": {"key": "value", ...}}`.
-        *   It calls `ollama.chat()` with `format='json'` to get the structured response.
-        *   It parses the JSON to extract the `agent_reply` and any `new_facts`.
-        *   If `new_facts` are present and valid, they are added to the agent's memory using `self.memory.add_fact()`.
-        *   It includes error handling for LLM communication and JSON parsing.
-        *   The `user_input` and the final `agent_reply` are logged to the conversation history in memory.
+    *   No longer directly manages LLM client details or model names.
+    *   In `__init__`, it calls `get_llm_provider_instance()` from `common.llm_config` to get the globally configured LLM provider.
+    *   The main `chat(user_input: str)` method:
+        *   Retrieves known facts and recent conversation history from the `Memory` instance.
+        *   Constructs a detailed prompt for the configured LLM provider. This prompt includes user input, known facts, history, and instructions for the LLM to generate a conversational `response` and identify `new_facts_to_store` (as a dictionary), returning both in a single JSON object.
+        *   Calls `self.llm_provider.chat(..., request_json_output=True)` to get the structured response.
+        *   Parses the JSON to extract the `agent_reply` and any `new_facts`.
+        *   Adds valid `new_facts` to memory via `self.memory.add_fact()`.
+        *   Includes generalized error handling for LLM communication and JSON parsing.
+        *   Logs the user input and final agent reply.
 
 3.  **`main.py` (CLI)** and **`app_ui.py` (Streamlit UI)**:
-    *   These interfaces interact with the LLM-enhanced agent.
-    *   The Streamlit UI (`app_ui.py`) allows users to chat with the agent and inspect its learned facts and internal conversation log, now reflecting the LLM's influence on memory and responses.
+    *   Interact with the refactored agent. The UI continues to allow users to chat and inspect memory, which now reflects the LLM's influence.
 
-This architecture allows the agent to have more natural conversations, learn facts more flexibly from user statements, and use its memory more intelligently, all mediated by the LLM.
+This architecture allows for more natural conversations and flexible fact learning, mediated by the chosen LLM provider.
 
 ## Prerequisites & Setup
 
-1.  **Ollama and LLM Model**:
-    *   **Install Ollama**: Ensure Ollama is installed and running. See the [Ollama official website](https://ollama.com/).
-    *   **Pull an LLM Model**: The agent defaults to `"mistral"`. You need this model (or your chosen alternative that's good at conversational tasks and following JSON format instructions) pulled in Ollama.
-      ```bash
-      ollama pull mistral
-      ```
-    *   **Install Ollama Python Client**:
-      ```bash
-      pip install ollama
-      ```
+1.  **LLM Provider Configuration**:
+    *   This agent uses the centrally configured LLM provider. Ensure you have set up your desired LLM provider (Ollama, OpenAI, Gemini, or AWS Bedrock) and configured the necessary environment variables (e.g., `LLM_PROVIDER`, `OLLAMA_MODEL`, `OPENAI_API_KEY`, etc.).
+    *   **Refer to the "Multi-LLM Provider Support" section in the main project README** for detailed instructions on setting up environment variables and installing provider-specific SDKs. A model good at conversational tasks and following JSON format instructions is recommended.
 
 2.  **Streamlit (for UI)**:
-    *   If you want to use the web UI, install Streamlit:
+    *   Install Streamlit (listed in this agent's `requirements.txt`):
       ```bash
       pip install streamlit
       ```
 
-*(If using Poetry for the main project, add `ollama` and `streamlit` to your `pyproject.toml` and run `poetry install`.)*
+*(If using Poetry for the main project, ensure `streamlit` and the chosen LLM provider's SDK are added to your `pyproject.toml`.)*
 
 ## How to Run
 
-**(Ensure you have completed all Prerequisites & Setup steps above: Ollama running, model pulled, and Python packages installed.)**
+**(Ensure you have completed all Prerequisites & Setup steps above: chosen LLM provider configured, its service running if needed, and Python packages installed.)**
 
 ### 1. Command-Line Interface (CLI)
 

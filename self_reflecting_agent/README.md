@@ -1,63 +1,51 @@
 # Self-Reflecting Agent
 
-## Self-Reflecting Agent (LLM-Powered)
+## Self-Reflecting Agent (LLM-Powered via Abstraction Layer)
 
-A Self-Reflecting Agent improves its output through a cycle of generation, evaluation (critique), and refinement. This version is **fully LLM-powered**, using Ollama for each stage of this process.
+A Self-Reflecting Agent improves its output through a cycle of generation, evaluation (critique), and refinement. This version is **fully LLM-powered**, using the **common LLM provider abstraction layer** (which can be Ollama, OpenAI, Gemini, or Bedrock based on global configuration) for each stage of this process.
 
-1.  **Generation**: Given a user prompt, an LLM generates an initial draft.
-2.  **Critique**: A second LLM call evaluates this draft against the original prompt, providing specific feedback for improvement.
-3.  **Refinement**: A third LLM call takes the original draft, the critique, and the initial prompt, and attempts to produce a revised output that addresses the critique.
+1.  **Generation**: Given a user prompt, the configured LLM provider generates an initial draft.
+2.  **Critique**: A second call to the LLM provider evaluates this draft against the original prompt, providing specific feedback for improvement.
+3.  **Refinement**: A third call to the LLM provider takes the original draft, the critique, and the initial prompt, and attempts to produce a revised output that addresses the critique.
 
-This cycle aims to produce higher-quality, more nuanced results than a single LLM call might achieve.
+This cycle aims to produce higher-quality, more nuanced results.
 
 ## Implementation
 
-This project demonstrates the fully LLM-driven Self-Reflecting Agent pattern:
+This project demonstrates the fully LLM-driven Self-Reflecting Agent pattern using the common LLM provider abstraction:
 
 1.  **`task_performer.py` (Updated)**:
-    *   `generate_initial_output(prompt: str, llm_model: str)`: Calls the specified Ollama `llm_model` with the user `prompt` to produce a first draft. The prompt to the LLM is engineered to ask for a concise initial piece of text.
-    *   `refine_output(initial_output: str, critique: str, original_prompt: str, llm_model: str)`: Takes the `initial_output`, `critique`, and `original_prompt`. It constructs a new prompt for the Ollama `llm_model`, instructing it to generate a revised version of the output that addresses all points in the critique and better fulfills the original request.
+    *   `generate_initial_output(prompt: str, llm_provider: BaseLLMProvider)`: Calls `llm_provider.chat()` with the user `prompt` to produce a first draft.
+    *   `refine_output(initial_output: str, critique: str, original_prompt: str, llm_provider: BaseLLMProvider)`: Constructs a prompt for the `llm_provider` incorporating the initial output, critique, and original prompt, instructing it to generate a revised version.
 
 2.  **`critique_mechanism.py` (Updated)**:
-    *   `critique_output(output_to_critique: str, original_prompt: str, llm_model: str)`: Uses the specified Ollama `llm_model` to evaluate the `output_to_critique` based on the `original_prompt`. The prompt to the LLM asks it to consider relevance, completeness, clarity, detail, and overall quality, and to provide 1-3 specific, actionable critique points or state that the output is good. It normalizes common "no critique" LLM responses to a standard "No critique." string.
+    *   `critique_output(output_to_critique: str, original_prompt: str, llm_provider: BaseLLMProvider)`: Uses the `llm_provider.chat()` to evaluate the `output_to_critique` based on the `original_prompt`, guided by a specific critique-generation prompt. Normalizes "no critique" LLM responses.
 
 3.  **`agent.py` (`SelfReflectingAgent` class - Updated)**:
-    *   Initialized with an `llm_model` name (e.g., "mistral"), which is passed to all component functions.
-    *   The `process_request(user_prompt: str)` method orchestrates the LLM-driven self-reflection loop:
-        1.  Calls `generate_initial_output()` to get the LLM-generated first draft.
-        2.  Calls `critique_output()` to get an LLM-generated critique of that draft.
-        3.  If the critique is meaningful (not "No critique."), it calls `refine_output()` to get an LLM-generated revised version.
-        4.  The agent logs these LLM interactions and returns a structured dictionary with `user_prompt`, `initial_output`, `critique`, `refined_output`, `final_output`, and a `log` of operations.
+    *   No longer directly manages LLM model names. In `__init__`, it calls `get_llm_provider_instance()` from `common.llm_config` to get the globally configured LLM provider.
+    *   The `process_request(user_prompt: str)` method orchestrates the self-reflection loop, passing the `self.llm_provider` instance to `generate_initial_output`, `critique_output`, and `refine_output`.
+    *   Logs interactions and returns a structured dictionary with all stages of the process.
 
 4.  **`main.py` (CLI)** and **`app_ui.py` (Streamlit UI)**:
-    *   These interfaces interact with the LLM-powered `SelfReflectingAgent`.
-    *   The Streamlit UI is particularly useful for visualizing the distinct LLM-generated outputs for each stage (initial draft, critique, refinement).
+    *   Interact with the refactored `SelfReflectingAgent`. The UI visualizes the LLM-generated outputs for each stage.
 
 ## Prerequisites & Setup
 
-1.  **Ollama and LLM Model**:
-    *   **Install Ollama**: Ensure Ollama is installed and running. See the [Ollama official website](https://ollama.com/).
-    *   **Pull an LLM Model**: The agent defaults to `"mistral"`. You need this model (or your chosen alternative) pulled in Ollama.
-      ```bash
-      ollama pull mistral
-      ```
-      A model good at instruction-following is recommended for all stages (generation, critique, and refinement).
-    *   **Install Ollama Python Client**:
-      ```bash
-      pip install ollama
-      ```
+1.  **LLM Provider Configuration**:
+    *   This agent uses the centrally configured LLM provider. Ensure you have set up your desired LLM provider (Ollama, OpenAI, Gemini, or AWS Bedrock) and configured the necessary environment variables (e.g., `LLM_PROVIDER`, `OLLAMA_MODEL`, `OPENAI_API_KEY`, etc.).
+    *   **Refer to the "Multi-LLM Provider Support" section in the main project README** for detailed instructions on setting up environment variables and installing provider-specific SDKs. A model good at instruction-following is recommended for all stages of this agent (generation, critique, and refinement).
 
 2.  **Streamlit (for UI)**:
-    *   If you want to use the web UI, install Streamlit:
+    *   Install Streamlit (listed in this agent's `requirements.txt`):
       ```bash
       pip install streamlit
       ```
 
-*(If using Poetry for the main project, add `ollama` and `streamlit` to your `pyproject.toml` and run `poetry install`.)*
+*(If using Poetry for the main project, ensure `streamlit` and the chosen LLM provider's SDK are added to your `pyproject.toml`.)*
 
 ## How to Run
 
-**(Ensure you have completed all Prerequisites & Setup steps above: Ollama running, model pulled, and Python packages installed.)**
+**(Ensure you have completed all Prerequisites & Setup steps above: chosen LLM provider configured, its service running if needed, and Python packages installed.)**
 
 ### 1. Command-Line Interface (CLI)
 

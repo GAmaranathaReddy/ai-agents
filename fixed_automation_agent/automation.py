@@ -1,15 +1,17 @@
-import ollama
+# import ollama # No longer directly importing ollama
+from common import get_llm_provider_instance # Use the abstraction layer
 import json
 import re # Retain for number extraction if LLM provides text, or as fallback
 
 class FixedAutomationAgent:
-    def __init__(self, llm_model="mistral"):
+    def __init__(self): # LLM model is now configured via the provider
         """
-        Initializes the Fixed Automation Agent with LLM for NLU.
+        Initializes the Fixed Automation Agent with LLM for NLU using the common provider.
         """
-        self.name = "RuleBot V2 (LLM-Enhanced)"
-        self.llm_model = llm_model
-        self.tasks = ["greet", "about", "add", "multiply", "unknown"]
+        self.llm_provider = get_llm_provider_instance()
+        self.name = f"RuleBot V2 (using {type(self.llm_provider).__name__})"
+        # self.llm_model = llm_model # Removed, provider handles its own model config
+        self.tasks = ["greet", "about", "add", "multiply", "unknown"] # Tasks agent can perform
 
     def _perform_greeting(self) -> str:
         return f"Hello! I am {self.name}. I can help with greetings, info about myself, addition, and multiplication."
@@ -57,13 +59,19 @@ class FixedAutomationAgent:
         """
 
         try:
-            ollama_response = ollama.chat(
-                model=self.llm_model,
+            # ollama_response = ollama.chat( # Old call
+            #     model=self.llm_model,
+            #     messages=[{'role': 'user', 'content': prompt_to_llm}],
+            #     format='json'
+            # )
+            # llm_output_str = ollama_response['message']['content']
+            llm_output_str = self.llm_provider.chat(
                 messages=[{'role': 'user', 'content': prompt_to_llm}],
-                format='json'
+                request_json_output=True # Signal to provider to request JSON
             )
-            llm_output_str = ollama_response['message']['content']
             # print(f"LLM Raw Output: {llm_output_str}") # For debugging
+            # Provider should raise error if JSON was requested but not received (for providers that support enforced JSON mode).
+            # For others, it's best effort via prompt, so json.loads might fail here.
             llm_output_json = json.loads(llm_output_str)
             response_payload["llm_interpretation"] = llm_output_json
 
@@ -93,18 +101,23 @@ class FixedAutomationAgent:
 
 
         except json.JSONDecodeError as e:
-            response_payload["error"] = f"LLM output was not valid JSON: {e}. Raw output: {llm_output_str}"
-            response_payload["final_result"] = "Sorry, I had trouble understanding the structure of the command."
+            response_payload["error"] = f"LLM output was not valid JSON: {e}. Raw output from provider: {llm_output_str}"
+            response_payload["final_result"] = "Sorry, I had trouble understanding the structure of the command from my AI."
         except Exception as e:
-            response_payload["error"] = f"Ollama LLM error: {type(e).__name__} - {e}. Is Ollama running and model '{self.llm_model}' pulled?"
+            response_payload["error"] = f"LLM provider error ({type(self.llm_provider).__name__}): {type(e).__name__} - {e}."
             response_payload["final_result"] = "Sorry, I'm having trouble connecting to my understanding module."
 
         return response_payload
 
 if __name__ == '__main__':
-    # Ensure Ollama is running and the model (e.g., "mistral") is pulled.
-    # Example: ollama pull mistral
-    agent = FixedAutomationAgent()
+    # Ensure your chosen LLM provider is configured via environment variables
+    # (e.g., LLM_PROVIDER, OLLAMA_MODEL, OPENAI_API_KEY, etc.)
+    # and that any necessary services (like Ollama server) are running.
+
+    print("Instantiating FixedAutomationAgent (will use configured LLM provider)...")
+    try:
+        agent = FixedAutomationAgent()
+        print(f"Agent initialized: {agent.name}")
 
     commands_to_test = [
         "hello there",

@@ -2,3 +2,6 @@ streamlit
 ollama
 chromadb
 sentence-transformers
+openai
+google-generativeai
+boto3

@@ -1,73 +1,62 @@
 # Tool-Enhanced Agent
 
-## Tool-Enhanced Agent (LLM-Powered NLU)
+## Tool-Enhanced Agent (LLM-Powered NLU via Abstraction Layer)
 
-A Tool-Enhanced Agent leverages external tools or functions to extend its capabilities. This version is enhanced with a Large Language Model (LLM) via Ollama for Natural Language Understanding (NLU), enabling it to interpret user requests in natural language to select the appropriate tool and extract its arguments.
+A Tool-Enhanced Agent leverages external tools or functions to extend its capabilities. This version is enhanced with a **centrally configured LLM provider** (via the common abstraction layer) for Natural Language Understanding (NLU). This enables the agent to interpret user requests in natural language to select the appropriate tool and extract its arguments.
 
-The core components of this enhanced pattern include:
-1.  **A set of available tools**: Functions performing specific tasks (e.g., `get_current_datetime`, `calculate_sum`, `get_weather`).
-2.  **LLM-Powered NLU**: The agent uses an LLM to:
-    *   Analyze the user's natural language input.
-    *   Identify which of the available tools is best suited for the request.
-    *   Extract the necessary arguments for the chosen tool from the input.
-    *   Return this information in a structured format (e.g., JSON).
+The core components:
+1.  **Available Tools**: Functions performing specific tasks (e.g., `get_current_datetime`, `calculate_sum`, `get_weather`).
+2.  **LLM-Powered NLU (via Abstraction Layer)**: The agent uses the configured LLM provider to:
+    *   Analyze the user's natural language input against a list of available tools and their descriptions.
+    *   Identify the most suitable tool.
+    *   Extract necessary arguments for that tool.
+    *   Return this information in a structured JSON format.
 3.  **Tool Execution**: The agent calls the selected tool function with the LLM-extracted arguments.
 4.  **Response Generation**: The agent formulates a final response based on the tool's output.
 
-This approach allows for more flexible and intuitive interaction with tool-using agents, as users are not restricted to rigid command formats.
+This allows for flexible interaction, as users are not restricted to rigid command formats.
 
 ## Implementation
 
-This project demonstrates the LLM-enhanced Tool-Enhanced Agent pattern:
-
 1.  **`tools.py`**:
-    *   Defines the actual Python functions that act as tools: `get_current_datetime()`, `calculate_sum(a, b)`, `get_weather(city)`. These remain simple and focused.
+    *   Defines the Python functions for tools: `get_current_datetime()`, `calculate_sum(a, b)`, `get_weather(city)`.
 
 2.  **`agent.py` (`ToolEnhancedAgent` class - Updated)**:
-    *   Initialized with an Ollama model name (e.g., "mistral").
-    *   Maintains a `tools_description` dictionary detailing each available tool and its expected arguments. This information is used to construct a prompt for the LLM.
-    *   Keeps a `callable_tools` dictionary mapping tool names (strings) to the actual tool functions.
-    *   The `process_request(user_input: str)` method is rewritten:
-        *   It builds a detailed prompt for the LLM, including the descriptions of available tools and the user's input. It instructs the LLM to identify the most appropriate tool and extract its arguments, responding in JSON format (e.g., `{"tool_name": "calculate_sum", "arguments": {"a": 10, "b": 5}}`).
-        *   It calls `ollama.chat()` with `format='json'` to get the LLM's interpretation.
-        *   It parses the JSON response to get the `tool_name` and `arguments` dictionary.
-        *   If a valid tool is identified in `callable_tools`:
-            *   It calls the tool function, dynamically passing the extracted `arguments` using `**arguments`.
-            *   It handles potential type errors for arguments (e.g., converting sum arguments to float).
-        *   It includes error handling for LLM communication, JSON parsing, and tool execution issues.
-        *   It returns a structured dictionary containing `user_input`, `llm_interpretation` (the parsed JSON from LLM), `tool_used`, `tool_input_params`, `tool_output_raw`, `final_response`, and any `error` messages.
+    *   No longer directly manages LLM client details (e.g., `ollama`).
+    *   In `__init__`, it calls `get_llm_provider_instance()` from `common.llm_config` to get a configured LLM provider (Ollama, OpenAI, Gemini, or Bedrock).
+    *   Maintains `tools_description` (for LLM prompting) and `callable_tools` (mapping names to functions).
+    *   The `process_request(user_input: str)` method:
+        *   Builds a prompt for the LLM, including tool descriptions and user input, instructing it to identify the tool and extract arguments in JSON.
+        *   Calls `self.llm_provider.chat(..., request_json_output=True)` to get the LLM's interpretation.
+        *   Parses the JSON to get `tool_name` and `arguments`.
+        *   Dynamically calls the chosen tool function with extracted arguments.
+        *   Includes generalized error handling for LLM and tool execution.
+        *   Returns a structured dictionary with `user_input`, `llm_interpretation`, `tool_used`, `tool_input_params`, `tool_output_raw`, `final_response`, and `error`.
 
 3.  **`main.py` (CLI)**:
-    *   The CLI now interacts with the LLM-enhanced agent, displaying the structured dictionary output, which includes the LLM's interpretation of the command.
+    *   Interacts with the refactored agent, displaying the structured output including LLM interpretation.
 
 4.  **`app_ui.py` (Streamlit UI - Updated)**:
-    *   The Streamlit UI is updated to encourage natural language input.
-    *   It now displays the "LLM Interpretation" (the JSON from Ollama showing tool choice and arguments) to provide transparency, alongside other details like the raw tool output and the agent's final response.
+    *   Encourages natural language input.
+    *   Displays the "LLM Interpretation" (JSON from the provider showing tool choice and args) for transparency, alongside other details.
 
 ## Prerequisites & Setup
 
-1.  **Ollama and LLM Model**:
-    *   **Install Ollama**: Ensure Ollama is installed and running. See [Ollama official website](https://ollama.com/).
-    *   **Pull an LLM Model**: The agent defaults to `"mistral"`. You need this model (or your chosen alternative that's good at following JSON format instructions and tool descriptions) pulled in Ollama.
-      ```bash
-      ollama pull mistral
-      ```
-    *   **Install Ollama Python Client**:
-      ```bash
-      pip install ollama
-      ```
+1.  **LLM Provider Configuration**:
+    *   This agent uses the centrally configured LLM provider. Ensure you have set up your desired LLM provider (Ollama, OpenAI, Gemini, or AWS Bedrock) and configured the necessary environment variables (e.g., `LLM_PROVIDER`, `OLLAMA_MODEL`, `OPENAI_API_KEY`, etc.).
+    *   **Refer to the "Multi-LLM Provider Support" section in the main project README** for detailed instructions on setting up environment variables and installing provider-specific SDKs.
 
 2.  **Streamlit (for UI)**:
-    *   If you want to use the web UI, install Streamlit:
+    *   Install Streamlit (listed in this agent's `requirements.txt`):
       ```bash
       pip install streamlit
       ```
 
-*(If using Poetry for the main project, add `ollama` and `streamlit` to your `pyproject.toml` and run `poetry install`.)*
+*(If using Poetry for the main project, ensure `streamlit` and the chosen LLM provider's SDK are added to your `pyproject.toml`.)*
 
 ## How to Run
 
-**(Ensure you have completed all Prerequisites & Setup steps above: Ollama running, model pulled, and Python packages installed.)**
+**(Ensure you have completed all Prerequisites & Setup steps above: chosen LLM provider configured, its service running if needed, and Python packages installed.)**
 
 ### 1. Command-Line Interface (CLI)
 

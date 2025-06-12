@@ -1,19 +1,21 @@
 # agent.py
-import ollama
+# import ollama # No longer directly importing ollama
+from common import get_llm_provider_instance # Use the abstraction layer
 import json
 from memory import Memory
 import re # Keep re for simple checks if needed, or remove if LLM handles all parsing
 
 class MemoryEnhancedAgent:
-    def __init__(self, llm_model="mistral"):
-        self.name = "RecallBot (LLM-Powered)"
+    def __init__(self): # LLM model is now configured via the provider
+        self.llm_provider = get_llm_provider_instance()
+        self.name = f"RecallBot (using {type(self.llm_provider).__name__})"
         self.memory = Memory()
-        self.llm_model = llm_model
+        # self.llm_model = llm_model # Removed, provider handles its own model config
 
     # The old _extract_facts and _generate_response methods are removed
     # as their logic is now handled by the LLM.
 
-    def chat(self, user_input: str) -> str: # Renamed from chat_with_llm for consistency if main.py/app_ui.py use 'chat'
+    def chat(self, user_input: str) -> str:
         """
         Main chat processing method using an LLM for conversation, fact extraction,
         and contextual memory use.
@@ -63,14 +65,19 @@ Example if no new facts:
 
         try:
             # print(f"\n[DEBUG] Prompt to LLM:\n{prompt_to_llm}\n") # For debugging the prompt
-            ollama_response = ollama.chat(
-                model=self.llm_model,
+            # ollama_response = ollama.chat( # Old call
+            #     model=self.llm_model,
+            #     messages=[{'role': 'user', 'content': prompt_to_llm}],
+            #     format='json' # Request JSON output from Ollama
+            # )
+            # llm_output_str = ollama_response['message']['content']
+            llm_output_str = self.llm_provider.chat(
                 messages=[{'role': 'user', 'content': prompt_to_llm}],
-                format='json' # Request JSON output from Ollama
+                request_json_output=True # Signal to provider to request JSON
             )
-            llm_output_str = ollama_response['message']['content']
             # print(f"[DEBUG] Raw LLM Output: {llm_output_str}") # For debugging
-
+            # Provider should raise error if JSON was requested but not received (for providers that support enforced JSON mode).
+            # For others, it's best effort via prompt, so json.loads might fail here.
             llm_data = json.loads(llm_output_str)
 
             agent_reply = llm_data.get("response", "I'm not sure how to reply to that right now.")
@@ -85,11 +92,11 @@ Example if no new facts:
                         # print(f"[DEBUG] LLM identified new fact with invalid type: {key} ({type(key)}) = {value} ({type(value)})")
 
         except json.JSONDecodeError as e:
-            agent_reply = f"Sorry, I received an unexpected format from my AI brain. JSON Error: {e}. Raw: '{llm_output_str[:100]}...'"
+            agent_reply = f"Sorry, I received an unexpected format from my AI brain. JSON Error: {e}. Raw output from provider: '{llm_output_str[:100]}...'"
             print(f"[ERROR] JSONDecodeError: {e}. Raw LLM output was: {llm_output_str}")
         except Exception as e:
-            agent_reply = f"Sorry, an error occurred while I was thinking: {type(e).__name__}. Is Ollama running and model '{self.llm_model}' available?"
-            print(f"[ERROR] Ollama interaction error: {e}")
+            agent_reply = f"Sorry, an error occurred while I was thinking ({type(self.llm_provider).__name__}): {type(e).__name__} - {e}."
+            print(f"[ERROR] LLM provider interaction error: {e}")
 
         # Log interaction (user input and final agent reply)
         self.memory.log_interaction(user_input, agent_reply)
@@ -97,9 +104,14 @@ Example if no new facts:
         return agent_reply
 
 if __name__ == '__main__':
-    # Ensure Ollama is running and the model (e.g., "mistral") is pulled.
-    # Example: ollama pull mistral
-    agent = MemoryEnhancedAgent()
+    # Ensure your chosen LLM provider is configured via environment variables
+    # (e.g., LLM_PROVIDER, OLLAMA_MODEL, OPENAI_API_KEY, etc.)
+    # and that any necessary services (like Ollama server) are running.
+
+    print("Instantiating MemoryEnhancedAgent (will use configured LLM provider)...")
+    try:
+        agent = MemoryEnhancedAgent()
+        print(f"Agent initialized: {agent.name}")
     print(f"Starting chat with {agent.name}...")
 
     test_dialogue = [

@@ -22,97 +22,68 @@ Combining ReAct and RAG creates a powerful agent. The ReAct framework provides t
 
 ## Implementation
 
-This project demonstrates an advanced ReAct + RAG flow where the **Reasoning** and **Generation** aspects are powered by a Large Language Model (LLM) via Ollama, and the **Retrieval** part uses ChromaDB as a vector store.
+This project demonstrates an advanced ReAct + RAG flow. The agent's **Reasoning** (intent analysis, search query formulation) and final **Response Synthesis** are powered by a dynamically selectable LLM provider accessed via the **common LLM abstraction layer** (`common.llm_providers.client`). The **Retrieval** part uses ChromaDB.
 
-1.  **`knowledge_base_manager.py`**:
-    *   Manages the ChromaDB vector database.
-    *   Uses `sentence-transformers` (e.g., `all-MiniLM-L6-v2`) for embedding documents and queries.
-    *   Handles ChromaDB client initialization, collection management, document addition (with embeddings), and querying.
-    *   Running `python react_rag_agent/knowledge_base_manager.py` initializes and populates the DB.
+1.  **`common/llm_providers/` (Abstraction Layer)**:
+    *   Provides `get_llm_client` to instantiate providers like Ollama, OpenAI, Gemini, Bedrock.
 
-2.  **`tools.py`**:
-    *   The `retrieve_information(query)` function interfaces with `knowledge_base_manager.py` to fetch relevant documents from ChromaDB based on semantic similarity.
+2.  **`react_rag_agent/knowledge_base_manager.py`**:
+    *   Manages the ChromaDB vector store using `sentence-transformers` for embeddings.
+    *   Run `python react_rag_agent/knowledge_base_manager.py` once to initialize/populate the DB with sample documents. Data is stored in `./react_rag_agent/chroma_db_data/`.
 
-3.  **`agent.py` (`ReActRAGAgent` class - Significantly Updated)**:
-    *   **LLM Integration**: Imports `ollama` and `json`. It's initialized with an Ollama model name (e.g., "mistral") for its reasoning and generation tasks.
+3.  **`react_rag_agent/tools.py`**:
+    *   The `retrieve_information(query)` function interfaces with `knowledge_base_manager.py` to fetch relevant documents from ChromaDB.
+
+4.  **`react_rag_agent/agent.py` (`ReActRAGAgent` class - Refactored)**:
+    *   **LLM Abstraction**: No longer directly imports specific LLM SDKs (like `ollama`). It imports `get_llm_client` from the common abstraction layer.
+    *   **Initialization**: `__init__(provider_name, model_name, **provider_kwargs)` allows specifying the LLM provider and model. It initializes `self.llm_client` using the factory. It determines `self.llm_model` to use (e.g., "mistral", "gpt-3.5-turbo-1106", "anthropic.claude-3-sonnet-20240229-v1:0") based on the input, provider defaults, or agent-specific defaults suitable for reasoning and JSON output.
     *   **`reason_and_act(user_input: str)` Method - Core Logic**:
-        1.  **Phase 1: Query Analysis & Search Query Formulation (LLM Call 1)**:
-            *   The agent first sends the `user_input` to the LLM (e.g., Mistral via Ollama).
-            *   A carefully crafted prompt instructs the LLM to:
-                *   Determine the user's `intent`: Is it "information_seeking" (requiring KB lookup) or "direct_answer" (general chat/question)?
-                *   If "information_seeking", generate a concise `search_query` suitable for the vector database.
-                *   If "direct_answer", generate a preliminary `llm_response`.
-            *   The LLM is asked to return this analysis in **JSON format**. The agent parses this JSON.
-            *   Includes error handling for the LLM call and JSON parsing, with fallbacks (e.g., defaulting to using the original user input as the search query).
-            *   The agent logs these initial reasoning steps.
-        2.  **Phase 2: Retrieval (Action, if "information_seeking")**:
-            *   If the LLM identified the intent as "information_seeking" and provided a `search_query`:
-                *   The agent calls `retrieve_information(search_query)` (from `tools.py`), which queries ChromaDB.
-                *   The retrieved document(s) are stored.
-            *   The agent logs the retrieval action and its outcome.
-        3.  **Phase 3: Response Synthesis (LLM Call 2 or Direct Answer)**:
-            *   **If information was retrieved**: The agent makes a *second* call to the LLM. This prompt includes the original `user_input` and the `retrieved_info` from ChromaDB. The LLM is asked to synthesize a comprehensive final answer based on both.
-            *   **If no retrieval was needed (intent was "direct_answer")**: The `llm_response` from Phase 1 is used as the final answer.
-            *   **Fallback**: If errors occurred or no useful information was obtained, a default or LLM-generated general response is provided.
-        4.  **Output**: The method returns a dictionary containing a detailed `thought_process` (list of steps), `action_taken` (describing the multi-step process), the `query_for_retrieval` (if any), `retrieved_info` (if any), and the `final_response`.
+        1.  **Phase 1: Query Analysis & Search Query Formulation (LLM Call 1 via Abstraction)**:
+            *   The agent sends the `user_input` to `self.llm_client.chat(model=self.llm_model, ..., format_json=True)`.
+            *   The prompt guides the LLM to determine intent, generate a `search_query` (if "information_seeking"), or provide a direct `llm_response`, all in JSON format.
+        2.  **Phase 2: Retrieval (Action)**:
+            *   If "information_seeking", the LLM-generated `search_query` is used with `retrieve_information()` to query ChromaDB.
+        3.  **Phase 3: Response Synthesis (LLM Call 2 via Abstraction or Direct Answer)**:
+            *   If context was retrieved, a second call to `self.llm_client.chat(model=self.llm_model, ..., format_json=False)` synthesizes the final answer.
+            *   If a direct answer was available from Phase 1, it's used. Fallbacks are in place.
+        4.  **Output**: Returns a structured dictionary ( `thought_process`, `action_taken`, etc.).
 
-4.  **`main.py` (CLI)** and **`app_ui.py` (Streamlit UI)**:
-    *   These interfaces interact with the agent. The Streamlit UI is particularly helpful for visualizing the detailed `thought_process`, `action_taken`, `retrieved_info`, and `final_response` from the agent's structured output.
+5.  **`react_rag_agent/app_ui.py` (Streamlit UI - Enhanced)**:
+    *   Allows dynamic selection of the LLM provider (Ollama, OpenAI, Gemini, Bedrock) and model name via sidebar widgets.
+    *   Re-initializes the `ReActRAGAgent` with the new selections.
+    *   Displays current provider/model and notes about API keys.
 
-5.  **`knowledge_base.py` (DELETED)**:
-    *   The old dictionary-based KB is obsolete and has been removed.
+6.  **`knowledge_base.py` (DELETED)**: The old dictionary-based KB is removed.
 
-The agent's flow is now more sophisticated:
-User Input -> **LLM (Analysis: Intent & Search Query Generation)** -> [Optional: Tool (ChromaDB Retrieval using generated query)] -> **LLM (Synthesis using retrieved context if available, or direct answer)** -> Final Response.
+The agent's flow:
+User Input -> **LLM (Analysis via Abstraction Layer)** -> [Optional: Tool (ChromaDB Retrieval)] -> **LLM (Synthesis via Abstraction Layer)** -> Final Response.
 
 ## Prerequisites & Setup
 
-### 1. Ollama and LLM Model
-   *   **Install Ollama**: Ensure Ollama is installed and running. See the [Ollama official website](https://ollama.com/).
-   *   **Pull an LLM Model**: The agent defaults to `"mistral"`. You need this model (or your chosen alternative) pulled in Ollama.
-     ```bash
-     ollama pull mistral
-     ```
-     For potentially better JSON handling and instruction following required by this agent, models like `"mistral"` or `"nous-hermes2"` (or other fine-tuned instruction models) are recommended. Ensure the model specified in `agent.py` is available.
-   *   **Install Ollama Python Client**:
-     ```bash
-     pip install ollama
-     ```
+1.  **Install Python Dependencies**:
+    Install all packages from `react_rag_agent/requirements.txt`. This includes `streamlit`, `chromadb`, `sentence-transformers`, and LLM SDKs (`ollama`, `openai`, `google-generativeai`, `boto3`).
+    ```bash
+    pip install -r react_rag_agent/requirements.txt
+    ```
 
-### 2. Knowledge Base (ChromaDB)
-    *   **Install Dependencies**: You'll need `chromadb` and `sentence-transformers`.
-      ```bash
-      pip install chromadb sentence-transformers
-      ```
-    *   **Initialize and Populate Database**: Run the knowledge base manager script *once* before using the agent:
+2.  **Knowledge Base (ChromaDB)**:
+    *   Initialize and populate the database by running *once*:
       ```bash
       python react_rag_agent/knowledge_base_manager.py
       ```
-      This creates a local ChromaDB instance in `./react_rag_agent/chroma_db_data/` and populates it with sample documents.
 
-*(If using Poetry for the main project, add `ollama`, `chromadb`, and `sentence-transformers` to your `pyproject.toml` and run `poetry install`.)*
-
-## How to Run
-
-**(Ensure you have completed all Prerequisites & Setup steps above: Ollama running, model pulled, Python packages installed, and ChromaDB initialized.)**
-
-1.  **Navigate to the agent's directory** (if running CLI) or **repository root** (if running Streamlit UI):
-    Before running the agent (CLI or UI) for the first time, or whenever you want to ensure the KB is set up with the sample documents, run the `knowledge_base_manager.py` script once:
-    ```bash
-    python react_rag_agent/knowledge_base_manager.py
-    ```
-    This script will:
-    *   Create a persistent ChromaDB database in a folder named `chroma_db_data` within the `react_rag_agent` directory.
-    *   Define a collection named `rag_documents`.
-    *   Add a set of sample documents (related to Python, Java, AI, ReAct, RAG) to the collection, generating their embeddings using the `all-MiniLM-L6-v2` model.
-    *   Perform a test query to confirm setup.
-    You only need to run this script once initially, or if you modify the sample documents within `knowledge_base_manager.py` and want to re-populate the database.
+3.  **LLM Provider Setup (Choose one or more as needed)**:
+    *   **Ollama**: Install from [ollama.com](https://ollama.com/), ensure service is running, and pull a model (e.g., `ollama pull mistral`).
+    *   **OpenAI**: Set `OPENAI_API_KEY` environment variable.
+    *   **Google Gemini**: Set `GOOGLE_API_KEY` environment variable.
+    *   **AWS Bedrock**: Configure AWS credentials and region. Ensure model access.
+    *(Refer to the main project README for more detailed setup instructions for each provider if needed.)*
 
 ## How to Run
 
-**(Ensure you have completed the Knowledge Base Setup above first.)**
+**(Ensure all Prerequisites & Setup are complete: Python packages installed, ChromaDB initialized, and chosen LLM provider(s) configured.)**
 
-1.  **Navigate to the agent's directory** (if running CLI) or **repository root** (if running Streamlit UI):
+1.  **Navigate to the repository root** (for Streamlit UI) or **agent's directory** (for CLI):
     For CLI:
     ```bash
     cd path/to/your/react_rag_agent

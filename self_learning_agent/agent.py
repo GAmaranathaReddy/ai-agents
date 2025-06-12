@@ -1,24 +1,26 @@
 # agent.py
 import random
 from typing import List, Dict, Tuple
-import ollama
+# import ollama # No longer directly importing ollama
+from common import get_llm_provider_instance # Use the abstraction layer
 
 class SelfLearningAgent_RPS:
-    def __init__(self, random_choice_threshold: int = 3, llm_model: str = "mistral"):
+    def __init__(self, random_choice_threshold: int = 3): # llm_model parameter removed
         """
         Initializes the Self-Learning Rock-Paper-Scissors Agent.
+        LLM provider for analysis is determined by global configuration.
 
         Args:
             random_choice_threshold (int): Number of opponent moves to observe
                                            before trying to predict based on frequency.
-            llm_model (str): The Ollama model to use for play style analysis.
         """
         self.opponent_move_history: List[str] = []
         self.move_counts: Dict[str, int] = {"rock": 0, "paper": 0, "scissors": 0}
         self.possible_moves: List[str] = ["rock", "paper", "scissors"]
         self.random_choice_threshold: int = random_choice_threshold
-        self.name: str = "LearnerBot-RPS (with LLM Analyst)"
-        self.llm_model = llm_model
+        self.llm_provider = get_llm_provider_instance()
+        self.name: str = f"LearnerBot-RPS (Analyst: {type(self.llm_provider).__name__})"
+        # self.llm_model = llm_model # Removed, provider handles its own model config
 
     def choose_action(self) -> str:
         """
@@ -102,22 +104,32 @@ class SelfLearningAgent_RPS:
         )
 
         try:
-            response = ollama.chat(
-                model=self.llm_model,
+            # response = ollama.chat( # Old call
+            #     model=self.llm_model,
+            #     messages=[{'role': 'user', 'content': prompt_to_llm}]
+            # )
+            # analysis = response['message']['content']
+            analysis = self.llm_provider.chat(
                 messages=[{'role': 'user', 'content': prompt_to_llm}]
+                # No request_json_output=True as we expect textual analysis here.
             )
-            analysis = response['message']['content']
             return analysis
         except Exception as e:
             # print(f"[ERROR agent.get_llm_analysis] Ollama error: {e}")
-            return f"LLM analysis error: {type(e).__name__}. Is Ollama running and model '{self.llm_model}' pulled?"
+            return f"LLM analysis error ({type(self.llm_provider).__name__}): {type(e).__name__} - {e}."
 
 
 if __name__ == '__main__':
-    print("Testing SelfLearningAgent_RPS...")
-    agent = SelfLearningAgent_RPS(random_choice_threshold=2, llm_model="mistral") # Specify model for test
+    # Ensure your chosen LLM provider is configured via environment variables
+    # (e.g., LLM_PROVIDER, OLLAMA_MODEL, OPENAI_API_KEY, etc.)
+    # and that any necessary services (like Ollama server) are running.
 
-    print(f"Initial choice (random): {agent.choose_action()}")
+    print("Instantiating SelfLearningAgent_RPS (will use configured LLM provider for analysis)...")
+    try:
+        agent = SelfLearningAgent_RPS(random_choice_threshold=2)
+        print(f"Agent initialized: {agent.name}")
+
+        print(f"\nInitial choice (random): {agent.choose_action()}")
 
     agent.learn("rock")
     print(f"Learned 'rock'. History: {agent.opponent_move_history}, Counts: {agent.move_counts}")

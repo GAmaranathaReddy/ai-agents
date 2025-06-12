@@ -1,24 +1,51 @@
 # agent.py
-from tools import retrieve_information # Assuming tools.py is updated for ChromaDB
-import ollama
+from .tools import retrieve_information # Corrected import path, assuming tools.py is in the same dir
+from common.llm_providers.client import get_llm_client, SUPPORTED_PROVIDERS, DEFAULT_PROVIDER
+from typing import List, Dict, Optional # For type hinting
 import json
-import re # Still useful for some fallback or simple parsing if needed
+import re
 
 class ReActRAGAgent:
-    def __init__(self, llm_model="mistral"): # Default model for reasoning and generation
-        self.name = "ReAct-RAG Bot (LLM-Powered)"
-        self.llm_model = llm_model
-        # The explicit keyword-based retrieval triggers might become secondary
-        # or integrated into the LLM's decision process.
-        # For now, we'll let the LLM try to decide first.
-        # self.retrieval_keywords = ["tell me about", "what is", "explain", "describe", "info on"]
-        # self.direct_lookup_keywords = ["python", "java", "ai", "react", "rag", "doc1", "doc2", "doc3", "doc4", "doc5"]
-        self.current_thought_process = [] # To log steps for UI
+    def __init__(self, provider_name: Optional[str] = None, model_name: Optional[str] = None, **provider_kwargs):
+        """
+        Initializes the ReActRAGAgent using a specified provider and model
+        via the common LLM client factory.
+
+        Args:
+            provider_name (str, optional): Name of the LLM provider.
+            model_name (str, optional): The specific model name to use.
+                                        Consider models good at JSON output and reasoning.
+            **provider_kwargs: Additional args for the provider's constructor.
+        """
+        try:
+            self.llm_client = get_llm_client(provider_name, **provider_kwargs)
+            self.actual_provider_name = self.llm_client.__class__.__name__.replace("Provider", "")
+        except Exception as e:
+            print(f"FATAL: Error initializing LLM client for ReActRAGAgent provider '{provider_name or DEFAULT_PROVIDER}': {e}")
+            raise RuntimeError(f"Failed to initialize LLM client for ReActRAGAgent: {e}") from e
+
+        # Determine model: Use provided, then provider's default, then agent's provider-specific default
+        if model_name:
+            self.llm_model = model_name
+        elif hasattr(self.llm_client, 'default_model') and self.llm_client.default_model:
+            self.llm_model = self.llm_client.default_model
+        else: # Fallback to agent's own defaults for specific providers if needed
+            if self.actual_provider_name.lower() == "ollama":
+                self.llm_model = "mistral"
+            elif self.actual_provider_name.lower() == "openai":
+                self.llm_model = "gpt-3.5-turbo-1106" # Newer version, better at JSON
+            elif self.actual_provider_name.lower() == "gemini":
+                self.llm_model = "gemini-pro"
+            elif self.actual_provider_name.lower() == "bedrock":
+                self.llm_model = "anthropic.claude-3-sonnet-20240229-v1:0"
+            else:
+                raise ValueError(f"No model_name specified and could not determine a default for ReActRAGAgent with provider '{self.actual_provider_name}'.")
+
+        self.name = f"ReAct-RAG Agent ({self.actual_provider_name}/{self.llm_model})"
+        self.current_thought_process = []
 
     def _log_step(self, step_description: str):
-        """Helper to add steps to the current thought process."""
         self.current_thought_process.append(step_description)
-        # print(f"[LOG] {step_description}") # Optional: for console debugging
 
     def reason_and_act(self, user_input: str) -> dict:
         """
@@ -54,14 +81,13 @@ class ReActRAGAgent:
         llm_analysis_error = None
 
         try:
-            llm_analysis_response = ollama.chat(
+            analysis_content_str = self.llm_client.chat( # Use new client and pass model
                 model=self.llm_model,
                 messages=[{'role': 'user', 'content': analysis_prompt}],
-                format='json' # Request JSON output
+                format_json=True
             )
-            analysis_content = llm_analysis_response['message']['content']
-            self._log_step(f"LLM Analysis raw output: {analysis_content}")
-            analysis_data = json.loads(analysis_content)
+            self._log_step(f"LLM Analysis raw output: {analysis_content_str}")
+            analysis_data = json.loads(analysis_content_str)
 
             intent = analysis_data.get("intent", "direct_answer")
             search_query = analysis_data.get("search_query")
@@ -72,13 +98,16 @@ class ReActRAGAgent:
             if direct_llm_answer:
                  self._log_step(f"LLM provided direct answer draft: '{direct_llm_answer[:60]}...'")
 
-        except Exception as e:
-            llm_analysis_error = f"Error during LLM query analysis: {type(e).__name__} - {e}"
+        except json.JSONDecodeError as e:
+            llm_analysis_error = f"Error parsing JSON from LLM query analysis ({self.actual_provider_name}/{self.llm_model}): {type(e).__name__} - {e}. Raw: {analysis_content_str}"
             self._log_step(llm_analysis_error)
-            # Fallback strategy: treat as information_seeking and use original input as search query
-            intent = "information_seeking"
-            search_query = user_input
-            self._log_step(f"Fallback: Defaulting to intent 'information_seeking' with original input as search query.")
+            intent = "information_seeking"; search_query = user_input; direct_llm_answer = None # Fallback
+            self._log_step(f"Fallback due to JSON error: Defaulting to intent 'information_seeking' with original input as search query.")
+        except Exception as e: # Catch other LLM call errors
+            llm_analysis_error = f"Error during LLM query analysis ({self.actual_provider_name}/{self.llm_model}): {type(e).__name__} - {e}"
+            self._log_step(llm_analysis_error)
+            intent = "information_seeking"; search_query = user_input; direct_llm_answer = None # Fallback
+            self._log_step(f"Fallback due to LLM error: Defaulting to intent 'information_seeking' with original input as search query.")
 
         # --- Phase 2: Retrieval (if intent is "information_seeking") ---
         retrieved_info = None
@@ -117,37 +146,36 @@ class ReActRAGAgent:
             If the retrieved context seems irrelevant, you can state that you found some information but it might not directly answer the query, then try to answer generally if possible.
             """
             try:
-                llm_synthesis_response = ollama.chat(
+            try:
+                final_response = self.llm_client.chat( # Use new client and pass model
                     model=self.llm_model,
-                    messages=[{'role': 'user', 'content': synthesis_prompt}]
+                    messages=[{'role': 'user', 'content': synthesis_prompt}],
+                    format_json=False # Expecting natural language response
                 )
-                final_response = llm_synthesis_response['message']['content']
                 self._log_step(f"LLM Synthesis successful. Response: \"{final_response[:60]}...\"")
             except Exception as e:
-                self._log_step(f"Error during LLM response synthesis: {e}")
+                self._log_step(f"Error during LLM response synthesis ({self.actual_provider_name}/{self.llm_model}): {e}")
                 final_response = "I found some information, but encountered an issue trying to synthesize a final answer. You can review the retrieved data."
 
         elif direct_llm_answer: # From Phase 1, intent was "direct_answer"
             self._log_step("Using direct answer from LLM Phase 1.")
             final_response = direct_llm_answer
-            # action_taken_for_ui remains "LLM Analysis" or gets appended if other actions occur
 
         else: # Fallback if no retrieval and no direct answer, or if analysis failed badly
-            if llm_analysis_error:
+            if llm_analysis_error: # If analysis failed, try a general response
                  self._log_step("Attempting fallback LLM response due to earlier analysis error.")
-                 # Try a generic response if analysis failed
                  try:
-                    fallback_response = ollama.chat(
+                    final_response = self.llm_client.chat( # Use new client and pass model
                         model=self.llm_model,
-                        messages=[{'role': 'user', 'content': f"User asked: '{user_input}'. Respond generally."}]
+                        messages=[{'role': 'user', 'content': f"The user asked: '{user_input}'. Please provide a general response as there was an issue processing it further."}],
+                        format_json=False
                     )
-                    final_response = fallback_response['message']['content']
                  except Exception as e:
-                    self._log_step(f"Fallback LLM call also failed: {e}")
+                    self._log_step(f"Fallback LLM call also failed ({self.actual_provider_name}/{self.llm_model}): {e}")
                     final_response = f"I'm sorry, I encountered an error and cannot process your request: '{user_input}'."
-            else:
+            else: # No retrieval, no direct_llm_answer, and no analysis error (e.g. intent was info_seeking but no search_query)
                 self._log_step("No information retrieved and no direct answer from LLM analysis. Providing a default response.")
-                final_response = f"I'm not sure how to respond to '{user_input}'. Could you try rephrasing or asking about topics I might have in my knowledge base (like Python, Java, AI, ReAct, RAG)?"
+                final_response = f"I'm not sure how to respond to '{user_input}'. Could you try rephrasing?"
 
         return {
             "thought_process": self.current_thought_process,
@@ -158,10 +186,15 @@ class ReActRAGAgent:
         }
 
 if __name__ == '__main__':
-    # Ensure Ollama is running: `ollama serve`
-    # Ensure the model is pulled: `ollama pull mistral`
-    # Ensure ChromaDB is populated: `python react_rag_agent/knowledge_base_manager.py`
-    agent = ReActRAGAgent()
+    # Ensure your chosen LLM provider is configured via environment variables
+    # (e.g., LLM_PROVIDER, OLLAMA_MODEL, OPENAI_API_KEY, etc.)
+    # and that any necessary services (like Ollama server) are running.
+    # Also ensure ChromaDB is populated: `python react_rag_agent/knowledge_base_manager.py`
+
+    print("Instantiating ReActRAGAgent (will use configured LLM provider)...")
+    try:
+        agent = ReActRAGAgent()
+        print(f"Agent initialized: {agent.name}")
 
     test_inputs = [
         "hello",

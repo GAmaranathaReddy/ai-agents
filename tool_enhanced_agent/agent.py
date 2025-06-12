@@ -1,13 +1,15 @@
 # agent.py
-import ollama
+# import ollama # No longer directly importing ollama
+from common import get_llm_provider_instance # Use the abstraction layer
 import json
 import re # Can still be useful for simple fallbacks or specific parsing if LLM fails
 from tools import get_current_datetime, calculate_sum, get_weather
 
 class ToolEnhancedAgent:
-    def __init__(self, llm_model="mistral"):
-        self.name = "ToolBot Pro (LLM-NLU)"
-        self.llm_model = llm_model
+    def __init__(self): # LLM model is now configured via the provider
+        self.llm_provider = get_llm_provider_instance()
+        self.name = f"ToolBot Pro (using {type(self.llm_provider).__name__})"
+        # self.llm_model = llm_model # Removed, provider handles its own model config
         self.tools_description = {
             "get_current_datetime": "Gets the current date and time. No arguments needed.",
             "calculate_sum": "Calculates the sum of two numbers. Expects two numerical arguments named 'a' and 'b'.",
@@ -59,13 +61,19 @@ Only provide the JSON response.
 """
 
         try:
-            ollama_response = ollama.chat(
-                model=self.llm_model,
+            # ollama_response = ollama.chat( # Old call
+            #     model=self.llm_model,
+            #     messages=[{'role': 'user', 'content': prompt_to_llm}],
+            #     format='json'
+            # )
+            # llm_output_str = ollama_response['message']['content']
+            llm_output_str = self.llm_provider.chat(
                 messages=[{'role': 'user', 'content': prompt_to_llm}],
-                format='json'
+                request_json_output=True # Signal to provider to request JSON
             )
-            llm_output_str = ollama_response['message']['content']
             # print(f"LLM Raw Output: {llm_output_str}") # For debugging
+            # Provider should raise error if JSON was requested but not received (for providers that support enforced JSON mode).
+            # For others, it's best effort via prompt, so json.loads might fail here.
             llm_output_json = json.loads(llm_output_str)
             response_payload["llm_interpretation"] = llm_output_json
 
@@ -117,33 +125,23 @@ Only provide the JSON response.
                 response_payload["final_response"] = "Sorry, I tried to use a tool I don't recognize."
 
         except json.JSONDecodeError as e:
-            response_payload["error"] = f"LLM output was not valid JSON: {e}. Raw output: {llm_output_str}"
+            response_payload["error"] = f"LLM output was not valid JSON: {e}. Raw output from provider: {llm_output_str}"
             response_payload["final_response"] = "Sorry, I had trouble understanding the structure of the command from my AI."
         except Exception as e:
-            response_payload["error"] = f"Ollama LLM error: {type(e).__name__} - {e}. Is Ollama running and model '{self.llm_model}' pulled?"
+            response_payload["error"] = f"LLM provider error ({type(self.llm_provider).__name__}): {type(e).__name__} - {e}."
             response_payload["final_response"] = "Sorry, I'm having trouble connecting to my understanding module."
 
         return response_payload
 
 if __name__ == '__main__':
-    # Ensure Ollama is running and the model (e.g., "mistral") is pulled.
-    # Example: ollama pull mistral
-    agent = ToolEnhancedAgent()
+    # Ensure your chosen LLM provider is configured via environment variables
+    # (e.g., LLM_PROVIDER, OLLAMA_MODEL, OPENAI_API_KEY, etc.)
+    # and that any necessary services (like Ollama server) are running.
 
-    test_queries = [
-        "Hello there!",
-        "What time is it?",
-        "current date please",
-        "Calculate the sum of 10 and 25.5",
-        "add -5 plus 3.2",
-        "sum of 100 and 200",
-        "What's the weather in London?",
-        "weather for New York please",
-        "weather in Berlin?",
-        "sum of ten and five", # Should fail sum tool due to non-numeric
-        "weather in", # Should ask for city
-        "weather for ?" # Should ask for city
-    ]
+    print("Instantiating ToolEnhancedAgent (will use configured LLM provider)...")
+    try:
+        agent = ToolEnhancedAgent()
+        print(f"Agent initialized: {agent.name}")
 
     test_queries = [
         "Hello there!",
@@ -181,3 +179,9 @@ if __name__ == '__main__':
 
     # results = agent.process_request('what is the weather in San Francisco') # Already covered
     # print(f"User Query: \"{results['user_input']}\" -> Final Response: {results['final_response']}\n" + "-"*30)
+
+    except ValueError as ve: # Catch config errors from get_llm_provider_instance
+        print(f"Configuration Error: {ve}")
+        print("Please ensure your LLM provider environment variables are set correctly.")
+    except Exception as e: # Catch other errors like connection issues during init or first call
+        print(f"An error occurred during testing: {type(e).__name__} - {e}")

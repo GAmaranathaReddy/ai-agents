@@ -44,7 +44,7 @@ def main():
             "confirmation": confirmation
         }
         st.session_state.action_log.insert(0, log_entry_goal_change)
-        st.experimental_rerun()
+        st.rerun()
 
     st.sidebar.markdown("---")
     st.sidebar.subheader("Current Agent Goal:")
@@ -96,7 +96,7 @@ def main():
             log_entry["new_env_state"] = st.session_state.environment.get_state()
 
             st.session_state.action_log.insert(0, log_entry) # Add to top for reverse chronological display
-            st.experimental_rerun() # Rerun to update the displayed environment state and log
+            st.rerun() # Rerun to update the displayed environment state and log
 
         if st.button("Reset Simulation", key="reset_sim_button"):
             # Preserve current LLM model, but reset environment, agent (with new env), log, step count
@@ -107,7 +107,7 @@ def main():
             st.session_state.action_log = []
             st.session_state.step_count = 0
             st.sidebar.success("Simulation and agent goal reset to default.") # Feedback
-            st.experimental_rerun()
+            st.rerun()
 
 
     with col2:
