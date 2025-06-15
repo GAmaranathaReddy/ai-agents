@@ -1,0 +1,5 @@
+streamlit
+ollama
+openai
+google-generativeai
+boto3
