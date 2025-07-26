@@ -57,13 +57,51 @@ This configures Poetry to use Python 3.12 as the interpreter for the project's v
 ```bash
   poetry install
 ```
-
 This installs all dependencies specified in the pyproject.toml on each agent project file
 
 3. Run the application:
    ```bash
    streamlit run run.py
    ```
+### Run using virtual environment
+
+1. **Clone the repository**
+
+   ```bash
+   git clone (https://github.com/GAmaranathaReddy/ai-agents.git)
+   cd ai_health_fitness_agent
+   ```
+
+2. **Create a virtual environment**
+
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+
+3. **Install dependencies**
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Run the application**
+
+   ```bash
+   python run.py
+   ```
+
+   This will start the Streamlit server on port 8501 (default: 8501).
+
+5. **Access the app**
+
+   Open your browser and go to:
+
+   ```
+   http://localhost:8501
+   ```
+
+
 
 ## Usage
 
