@@ -1,0 +1,5 @@
+streamlit
+streamlit-chat
+phidata
+ollama
+duckduckgo-search
