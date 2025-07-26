@@ -31,6 +31,7 @@ Ensure you have the following installed on your system:
 
 ### Setting Up Development Environment in Local
 
+#### Local Development Environment using Poetry 
 Clone the project
 ```bash
   git clone https://github.com/GAmaranathaReddy/ai-agents.git
@@ -59,6 +60,34 @@ This installs all dependencies specified in the pyproject.toml on each agent pro
    streamlit run run.py
    ```
 
+#### Local Development Environment using Python virtual environment 
+## Installation
+
+1. Clone this repository:
+   ```sh
+   git clone (https://github.com/GAmaranathaReddy/ai-agents.git)
+   cd web-rearch-agent
+   ```
+
+2. Create and activate a Python virtual environment (Python 3.10 recommended):
+   ```sh
+   python3.10 -m venv .venv
+   source .venv/bin/activate
+   ```
+
+3. Install dependencies:
+   ```sh
+   pip install -r requirements.txt
+   ```
+
+## Usage
+
+Run the Streamlit app:
+```sh
+python run.py
+```
+
+Then open your browser to the URL shown in the terminal (default: http://0.0.0.0:8501).
 ---
 
 ## Usage
